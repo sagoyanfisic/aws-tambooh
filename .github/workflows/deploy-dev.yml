@@ -25,6 +25,15 @@ jobs:
           : "${AWS_CLOUDFORMATION_ROLE_ARN:?Set AWS_CLOUDFORMATION_ROLE_ARN from the access-key bootstrap outputs}"
           command -v make
           command -v rsync
+      - name: Check required dev secrets
+        env:
+          DEPLOY_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          DEPLOY_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        run: |
+          if [ -z "$DEPLOY_ACCESS_KEY_ID" ] || [ -z "$DEPLOY_SECRET_ACCESS_KEY" ]; then
+            echo "::error::Add AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY under Settings > Environments > dev > Environment secrets. Variables are not secrets."
+            exit 1
+          fi
       - name: Install test dependencies
         run: python -m pip install -e '.[dev]'
       - name: Test
