@@ -22,7 +22,7 @@ jobs:
       DEPLOY_ENV: ${{ inputs.environment }}
       AWS_REGION: ${{ vars.AWS_REGION || 'us-east-2' }}
       AWS_ARTIFACTS_BUCKET: ${{ vars.AWS_ARTIFACTS_BUCKET || (inputs.environment == 'dev' && 'tambooh-dev-artifacts-786638967830' || '') }}
-      AWS_CLOUDFORMATION_ROLE_ARN: ${{ vars.AWS_CLOUDFORMATION_ROLE_ARN || (inputs.environment == 'dev' && 'arn:aws:iam::786638967830:role/tambooh-dev-cloudformation' || '') }}
+      AWS_CLOUDFORMATION_ROLE_ARN: ${{ vars.AWS_CLOUDFORMATION_ROLE_ARN || (inputs.environment == 'dev' && 'arn:aws:iam::786638967830:role/tambooh-dev-keys-cloudformation' || '') }}
       AWS_DEPLOY_ROLE_ARN: ${{ vars.AWS_DEPLOY_ROLE_ARN || (inputs.environment == 'dev' && 'arn:aws:iam::786638967830:role/tambooh-dev-github-deploy' || '') }}
     steps:
       - uses: actions/checkout@v4
@@ -31,7 +31,10 @@ jobs:
           python-version: '3.12'
       - name: Check deployment prerequisites
         run: |
-          : "${AWS_DEPLOY_ROLE_ARN:?Set the GitHub environment variable AWS_DEPLOY_ROLE_ARN}"
+          if [ "$DEPLOY_ENV" = prod ]; then
+            : "${AWS_DEPLOY_ROLE_ARN:?Set the production AWS_DEPLOY_ROLE_ARN}"
+          fi
+          : "${AWS_CLOUDFORMATION_ROLE_ARN:?Set AWS_CLOUDFORMATION_ROLE_ARN from the bootstrap outputs}"
           command -v make
           command -v rsync
       - name: Install test dependencies
@@ -39,6 +42,7 @@ jobs:
       - name: Test
         run: python -m pytest -q
       - name: Inspect OIDC claims (no credentials logged)
+        if: inputs.environment == 'prod'
         uses: actions/github-script@v8
         with:
           script: |
@@ -53,11 +57,23 @@ jobs:
             core.info(JSON.stringify(safe, null, 2));
             await core.summary.addHeading('OIDC claims for AWS bootstrap')
               .addCodeBlock(JSON.stringify(safe, null, 2), 'json').write();
-      - uses: aws-actions/configure-aws-credentials@v4
+      - name: Configure AWS credentials from dev secrets
+        if: inputs.environment == 'dev'
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+          unset-current-credentials: true
+      - name: Configure production OIDC credentials
+        if: inputs.environment == 'prod'
+        uses: aws-actions/configure-aws-credentials@v4
         with:
           audience: sts.amazonaws.com
           role-to-assume: ${{ env.AWS_DEPLOY_ROLE_ARN }}
           aws-region: ${{ env.AWS_REGION }}
+      - name: Verify deployment account and role
+        run: bash scripts/check-deploy-target.sh
       - uses: aws-actions/setup-sam@v2
       - name: Build and deploy
         run: bash scripts/deploy.sh "$DEPLOY_ENV"

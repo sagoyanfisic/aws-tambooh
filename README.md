@@ -15,7 +15,7 @@ The application keeps source prices in PEN, preserves provenance, uses determini
 - DynamoDB normalized price records with date-query GSI.
 - EventBridge Scheduler at 07:00 `America/Lima`.
 - CloudFront with S3 Origin Access Control for frontend delivery.
-- AWS SAM infrastructure, GitHub Actions, and GitHub OIDC deployment scaffolding.
+- AWS SAM infrastructure and manual GitHub Actions deployment: dev IAM access-key secrets, production OIDC scaffolding.
 
 ## Architecture
 
@@ -134,7 +134,7 @@ See [docs/price-ingestion.md](docs/price-ingestion.md) for source limitations, S
 
 The configured target is account `786638967830`, region `us-east-2` (Ohio). Create the private artifact bucket `tambooh-dev-artifacts-786638967830` and the deployment roles before running the workflow. Exact prerequisites and GitHub environment variables are in [Deployment](docs/deployment.md).
 
-To create or repair the GitHub OIDC access in that account, follow [Access bootstrap](docs/bootstrap-access.md). It previews the plan offline and requires an explicit AWS profile or the target account's CloudShell when applying; it never uses your local default profile.
+The AWS Projects account blocked OIDC provider creation. For the requested dev alternative, follow [Access-key deployment](docs/access-keys-deployment.md): upload the standalone CloudFormation template, create the dedicated user's key manually, and store it only in GitHub environment secrets. The workflow verifies the target account before deployment. Static credentials remain subject to SCP restrictions; live provisioning is not yet verified. Production retains the separate [OIDC bootstrap](docs/bootstrap-access.md).
 
 For optional Claude, create the Anthropic secret outside SAM in us-east-2. Ingestion can deploy with AI disabled and no secret. Do not pass the API key as a CloudFormation parameter:
 
@@ -164,7 +164,7 @@ Or use the helper script after `samconfig.toml` is configured:
 scripts/deploy.sh dev
 ```
 
-The GitHub Actions deployment uses short-lived credentials through GitHub OIDC. No permanent AWS access keys are required. Production approval must be configured as a protected GitHub environment.
+Development deployment reads its dedicated IAM access keys from GitHub environment secrets. Production retains OIDC federation and requires approval configured through a protected GitHub environment. Neither workflow stores credentials in source files.
 
 Deployments run on demand. After the workflows exist on the default branch `master`, open **Actions → Deploy dev → Run workflow**, select branch **dev**, and start the run. Pushes and pull requests run validation through CI but do not deploy. The GitHub environment `dev` must permit deployments from the branch `dev`.
 

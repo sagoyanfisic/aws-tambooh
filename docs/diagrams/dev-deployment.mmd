@@ -1,0 +1,21 @@
+sequenceDiagram
+    actor Operator
+    participant Console as Target AWS Console
+    participant GH as GitHub dev environment
+    participant Job as Manual Deploy dev job
+    participant STS as AWS STS
+    participant CF as CloudFormation
+    Operator->>Console: Create key-access stack in 786638967830 / us-east-2
+    Console-->>Operator: Dedicated IAM user and execution-role ARN
+    Operator->>Console: Create IAM user access key manually
+    Operator->>GH: Store key pair as environment secrets
+    Operator->>Job: workflow_dispatch from dev branch
+    GH-->>Job: Supply environment secrets and variables
+    Job->>STS: GetCallerIdentity using configured key
+    STS-->>Job: Account identity
+    alt Expected account, region and execution role
+        Job->>CF: SAM deploy with separate execution role
+    else Wrong target
+        Job-->>Operator: Fail before deployment
+    end
+    Note over Console,CF: All operations remain subject to SCPs; deployment is not yet verified

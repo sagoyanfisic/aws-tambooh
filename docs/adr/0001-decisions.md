@@ -8,6 +8,7 @@ Normalized records use a composite key (`pk`, `sk`) and on-demand capacity to ma
 
 ## OIDC
 GitHub federation avoids long-lived keys; exact immutable repository claims are required.
+The requested dev exception for AWS Projects is recorded in [ADR 0002](0002-dev-access-keys.md).
 
 ## Claude API
 Claude is an optional explanation layer, not a source of facts or arithmetic. The backend retrieves its key from Secrets Manager in AWS and never exposes it to the browser.

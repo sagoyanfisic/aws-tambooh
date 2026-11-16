@@ -2,6 +2,8 @@
 
 Target account: **786638967830**. Region: **us-east-2**. The operator's local default AWS profile must not be used.
 
+**Current AWS Projects account:** its SCP rejected OIDC provider creation. The dev workflows now use the requested [IAM access-key setup](access-keys-deployment.md), with a separate `console-access-keys.json` bootstrap. The OIDC procedure below is retained for accounts that permit federation; it does not resolve an explicit SCP deny. Do not retry it expecting an IAM Allow to override that deny.
+
 The account-guarded bootstrap creates or updates only the two dedicated IAM roles and the GitHub OIDC provider. It does not deploy Lambda, modify an existing artifact bucket or create permanent access keys. Previewing a plan does not contact AWS.
 
 ## Preferred: paste a CloudFormation template in the console
@@ -10,7 +12,7 @@ Use the complete standalone template `infrastructure/bootstrap/console.yaml`. It
 
 1. Sign into account **786638967830**, select **us-east-2**, and open CloudFormation. Create stack with new resources and use the template editor, or upload the YAML file.
 2. Use stack name `tambooh-dev-access`.
-3. `GitHubOidcSubject`: paste the exact `sub` from the deployment's Inspect OIDC claims step (see below). No guessed subject or wildcard.
+3. `GitHubOidcSubject`: use the exact previously observed `sub` (see below). No guessed subject or wildcard.
 4. `ExistingArtifactBucketName`: keep `tambooh-dev-artifacts-786638967830` if it already exists; clear the parameter if CloudFormation should create it. Reused buckets are not modified; verify encryption/public blocking yourself.
 5. `ExistingOidcProviderArn`: if the provider exists, enter `arn:aws:iam::786638967830:oidc-provider/token.actions.githubusercontent.com`. Otherwise leave empty. A reused provider must already have issuer `https://token.actions.githubusercontent.com` and audience `sts.amazonaws.com`; this stack does not edit external providers.
 6. Keep `AccessRolePrefix=tambooh-dev-bootstrap`. If those new names also exist outside this stack, choose another unique `tambooh-dev-...` prefix. The application stack remains `tambooh-dev`.
@@ -31,7 +33,13 @@ The following CLI option is an alternative for updating the original dedicated r
 
 ## 1. Obtain the real GitHub subject
 
-Push the updated development workflow, then start a new **Deploy dev** run from branch **dev**. The **Inspect OIDC claims** step runs before AWS login and prints only selected metadata: issuer, audience, subject, repository and ref. The raw JWT is masked and never printed. The subsequent AWS login may fail until bootstrap is complete.
+Before the switch to dev access keys, this repository's dev workflow emitted the exact subject below. The current dev workflow no longer requests an OIDC token:
+
+```text
+repo:sagoyanfisic@2530782/aws-tambooh@1460085943:environment:dev
+```
+
+Reverify the claim before restoring dev OIDC. The general workflow retains an Inspect OIDC claims step only for its production selection; that production subject must never be substituted into a dev trust. It prints selected metadata and masks the raw JWT. The provider must be permitted by the account's SCP first.
 
 Copy the complete `sub` from that step. Do not reconstruct it from an environment numeric ID. Current formats supported by the bootstrap are:
 
@@ -95,7 +103,7 @@ The bootstrap does **not** modify an existing artifact bucket. Verify that `tamb
 
 The script prints the four GitHub environment values after success. In **Settings → Environments → dev**, set those values and allow deployment from branch `dev`. No AWS access keys are stored in GitHub.
 
-Start a new **Deploy dev** run. Passing OIDC confirms federation only; the next steps separately validate build and resource-creation permissions. Do not rerun an old commit when testing changed workflow files.
+These dev OIDC instructions apply only after deliberately restoring the OIDC credential step in the workflow. The current **Deploy dev** uses the access-key guide instead. Passing OIDC confirms federation only; the next steps separately validate build and resource-creation permissions. Do not rerun an old commit when testing changed workflow files.
 
 If `InvalidIdentityToken` remains, inspect the provider issuer and ClientIDList through this same verified account context. A subject mismatch usually requires reviewing role trust; do not loosen it to `repo:*`. Do not delete a shared provider or change the other account's default profile as a workaround.
 

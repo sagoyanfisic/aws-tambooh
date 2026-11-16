@@ -9,6 +9,7 @@ Parameters:
     - dev
   GitHubOidcSubject:
     Type: String
+    Default: repo:sagoyanfisic@2530782/aws-tambooh@1460085943:environment:dev
     Description: Exact sub copied from Inspect OIDC for environment dev. No wildcards.
     AllowedPattern: repo:sagoyanfisic(?:@[0-9]+)?/aws-tambooh(?:@[0-9]+)?:environment:dev
   ExistingOidcProviderArn:

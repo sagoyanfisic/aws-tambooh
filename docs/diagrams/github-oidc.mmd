@@ -4,6 +4,7 @@ sequenceDiagram
  participant O as GitHub OIDC
  participant S as AWS STS
  participant SAM as AWS SAM
+ Note over G,S: Retained production path; dev uses access-key secrets
  G->>O: request token
  G->>S: assume exact environment subject role
  S-->>G: short-lived credentials
