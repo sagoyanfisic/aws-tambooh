@@ -3,6 +3,10 @@
 Target account: `786638967830`. Default region: `us-east-2` (Ohio).
 The configured development stack is `tambooh-dev`.
 
+If the initial stack creation has already rolled back, use [the recovery runbook](recover-failed-deployment.md) before retrying. It preserves and imports retained data resources. After import, set the dev environment variable `AWS_RAW_DATA_BUCKET_NAME` to the retained bucket's actual physical name; the updated template accepts it through `RawDataBucketName`.
+
+For a fresh stack using a different raw bucket, set `AWS_RAW_DATA_BUCKET_NAME` to a new name such as `tambooh-dev-rawdatabucket-786638967830-v2`; SAM creates the bucket. This does not rename or import the previous bucket, and it does not resolve a retained `tambooh-dev-prices` table. That table must be imported or, only after confirming its contents are disposable, removed manually before creating a replacement with the same name. The workflows never delete retained data automatically.
+
 **Current dev authentication:** use [the access-key deployment guide](access-keys-deployment.md). The AWS Projects account rejected OIDC provider creation with an SCP deny, so dev now reads `AWS_ACCESS_KEY_ID` and `AWS_SECRET_ACCESS_KEY` from GitHub **environment secrets**. Create permissions with `infrastructure/bootstrap/console-access-keys.json` and replace `AWS_CLOUDFORMATION_ROLE_ARN` with its output. The OIDC setup described below applies to production or accounts that permit it; it is not a prerequisite for the current dev key workflow. No AWS changes have been made by preparing this configuration.
 
 ## One-time AWS setup

@@ -118,6 +118,14 @@
               "Version": "2012-10-17",
               "Statement": [
                 {
+                  "Sid": "UseSamTransform",
+                  "Effect": "Allow",
+                  "Action": "cloudformation:CreateChangeSet",
+                  "Resource": {
+                    "Fn::Sub": "arn:${AWS::Partition}:cloudformation:${AWS::Region}:aws:transform/Serverless-2016-10-31"
+                  }
+                },
+                {
                   "Effect": "Allow",
                   "Action": [
                     "lambda:CreateFunction",
@@ -347,7 +355,9 @@
                     "apigateway:POST",
                     "apigateway:PUT",
                     "apigateway:PATCH",
-                    "apigateway:DELETE"
+                    "apigateway:DELETE",
+                    "apigateway:TagResource",
+                    "apigateway:UntagResource"
                   ],
                   "Resource": [
                     {
@@ -417,6 +427,14 @@
             "PolicyDocument": {
               "Version": "2012-10-17",
               "Statement": [
+                {
+                  "Sid": "UseSamTransform",
+                  "Effect": "Allow",
+                  "Action": "cloudformation:CreateChangeSet",
+                  "Resource": {
+                    "Fn::Sub": "arn:${AWS::Partition}:cloudformation:${AWS::Region}:aws:transform/Serverless-2016-10-31"
+                  }
+                },
                 {
                   "Effect": "Allow",
                   "Action": [

@@ -8,6 +8,10 @@ on:
         required: true
         default: dev
         options: [dev, prod]
+      execute_changeset:
+        description: Execute the change set (disable to review it without changing resources)
+        type: boolean
+        default: true
 permissions:
   contents: read
   id-token: write
@@ -20,6 +24,8 @@ jobs:
     environment: ${{ inputs.environment == 'prod' && 'production' || 'dev' }}
     env:
       DEPLOY_ENV: ${{ inputs.environment }}
+      SAM_EXECUTE_CHANGESET: ${{ inputs.execute_changeset && 'true' || 'false' }}
+      AWS_RAW_DATA_BUCKET_NAME: ${{ vars.AWS_RAW_DATA_BUCKET_NAME }}
       AWS_REGION: ${{ vars.AWS_REGION || 'us-east-2' }}
       AWS_ARTIFACTS_BUCKET: ${{ vars.AWS_ARTIFACTS_BUCKET || (inputs.environment == 'dev' && 'tambooh-dev-artifacts-786638967830' || '') }}
       AWS_CLOUDFORMATION_ROLE_ARN: ${{ vars.AWS_CLOUDFORMATION_ROLE_ARN || (inputs.environment == 'dev' && 'arn:aws:iam::786638967830:role/tambooh-dev-keys-cloudformation' || '') }}

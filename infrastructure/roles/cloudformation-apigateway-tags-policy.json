@@ -1,0 +1,14 @@
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "ManageHttpApiTags",
+      "Effect": "Allow",
+      "Action": ["apigateway:TagResource", "apigateway:UntagResource"],
+      "Resource": [
+        "arn:aws:apigateway:us-east-2::/apis",
+        "arn:aws:apigateway:us-east-2::/apis/*"
+      ]
+    }
+  ]
+}

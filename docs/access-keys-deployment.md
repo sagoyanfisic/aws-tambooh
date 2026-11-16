@@ -55,6 +55,20 @@ The workflow runs tests, loads the two GitHub secrets using `aws-actions/configu
 
 The verification is read-only. A successful STS check proves the selected account, not that the full deployment will be permitted. IAM/SCP restrictions can still prevent later resource creation. No workflow is triggered by a push.
 
+## Troubleshooting
+
+### API stage tagging failure and initial rollback
+
+If `ApiStage` fails with `apigateway:TagResource` and `tambooh-dev` reaches `ROLLBACK_COMPLETE`, follow [the retained-data recovery runbook](recover-failed-deployment.md). Update this access stack with the corrected template first. Do not repeatedly rerun SAM or delete the retained DynamoDB table/S3 bucket. The runbook imports both existing data resources before resuming the full deployment.
+
+### Missing SAM transform permission
+
+If the change set fails with `cloudformation:CreateChangeSet` denied on `arn:aws:cloudformation:us-east-2:aws:transform/Serverless-2016-10-31`, update the **existing** `tambooh-dev-key-access` stack using the corrected `console-access-keys.json`. Keep its current parameters, acknowledge named IAM resources, and verify that the change set modifies the inline policies without replacing the IAM user or execution role. After `UPDATE_COMPLETE`, start a new dev deployment. Do not create a second stack with the same resource names or recreate access keys.
+
+The bootstrap grants only `CreateChangeSet` on the AWS-owned SAM transform to both the execution role and deployment identity. The ARN contains `aws` instead of the application account ID. This is separate from the existing permissions on the application's stack and change sets. See [AWS's transform permission example](https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/control-access-with-iam.html).
+
+For an immediate manual repair in the target console, add [this narrowly scoped inline policy](../infrastructure/roles/cloudformation-sam-transform-policy.json) to `tambooh-dev-keys-cloudformation`. It supplements existing permissions; it must not replace the full `ApplicationResources` policy. Update the bootstrap stack afterward to keep its managed policy aligned. No AWS permissions are modified by editing the repository alone.
+
 ## Rotation and cleanup
 
 Create a second access key for this same user, update both GitHub secrets, and run a new dev deployment. After confirming success, deactivate the old key, verify it is no longer used, and delete it. Delete unused keys when the demo ends. Do not delete this IAM user or stack while its keys remain in use. IAM users with active keys can require key deletion before CloudFormation can delete the user.

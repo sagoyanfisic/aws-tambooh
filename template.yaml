@@ -8,6 +8,13 @@ Parameters:
   AnthropicSecretId: {Type: String, Default: tambooh/dev/anthropic-api-key, NoEcho: true}
   IngestionScheduleExpression: {Type: String, Default: 'cron(0 7 * * ? *)'}
   LogRetentionDays: {Type: Number, Default: 14, AllowedValues: [7, 14, 30, 90]}
+  RawDataBucketName:
+    Type: String
+    Default: ''
+    AllowedPattern: '^$|^tambooh-(dev|prod)-rawdatabucket-[a-z0-9-]+$'
+    Description: Optional explicit name for a new or imported raw bucket. Empty lets CloudFormation assign a name.
+Conditions:
+  HasRawDataBucketName: !Not [!Equals [!Ref RawDataBucketName, '']]
 Globals:
   Function:
     Runtime: python3.12
@@ -121,6 +128,7 @@ Resources:
     DeletionPolicy: Retain
     UpdateReplacePolicy: Retain
     Properties:
+      BucketName: !If [HasRawDataBucketName, !Ref RawDataBucketName, !Ref 'AWS::NoValue']
       BucketEncryption: {ServerSideEncryptionConfiguration: [{ServerSideEncryptionByDefault: {SSEAlgorithm: AES256}}]}
       PublicAccessBlockConfiguration: {BlockPublicAcls: true, BlockPublicPolicy: true, IgnorePublicAcls: true, RestrictPublicBuckets: true}
       LifecycleConfiguration: {Rules: [{Id: ExpireRawData, Status: Enabled, Prefix: raw/, ExpirationInDays: 90}]}

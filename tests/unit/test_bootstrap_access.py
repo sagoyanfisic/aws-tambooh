@@ -1,10 +1,67 @@
 import json
+from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import Mock
 
 import pytest
 
 from scripts.bootstrap_access import ACCOUNT, AwsCli, apply_plan, build_plan
+
+
+@pytest.mark.parametrize(
+    ("filename", "deployer"),
+    [
+        ("template.json", "GitHubDeploymentRole"),
+        ("console-access-keys.json", "GitHubDeploymentUser"),
+    ],
+)
+def test_bootstrap_grants_only_the_required_sam_transform(filename, deployer):
+    path = Path(__file__).resolve().parents[2] / "infrastructure/bootstrap" / filename
+    template = json.loads(path.read_text())
+    for identity in ["CloudFormationRole", deployer]:
+        policies = template["Resources"][identity]["Properties"]["Policies"]
+        statements = [s for p in policies for s in p["PolicyDocument"]["Statement"]]
+        grants = [s for s in statements if s.get("Sid") == "UseSamTransform"]
+        assert grants == [
+            {
+                "Sid": "UseSamTransform",
+                "Effect": "Allow",
+                "Action": "cloudformation:CreateChangeSet",
+                "Resource": {
+                    "Fn::Sub": (
+                        "arn:${AWS::Partition}:cloudformation:${AWS::Region}"
+                        ":aws:transform/Serverless-2016-10-31"
+                    )
+                },
+            }
+        ]
+
+
+def test_offline_plan_resolves_aws_owned_transform_not_application_account():
+    plan = build_plan("repo:sagoyanfisic/aws-tambooh:environment:dev")
+    for role in plan["roles"].values():
+        statements = role["Policies"][0]["PolicyDocument"]["Statement"]
+        grant = next(s for s in statements if s.get("Sid") == "UseSamTransform")
+        assert grant["Resource"] == (
+            "arn:aws:cloudformation:us-east-2:aws:transform/Serverless-2016-10-31"
+        )
+
+
+@pytest.mark.parametrize("filename", ["template.json", "console-access-keys.json"])
+def test_api_gateway_tag_permissions_cover_the_failed_stage_resource(filename):
+    path = Path(__file__).resolve().parents[2] / "infrastructure/bootstrap" / filename
+    template = json.loads(path.read_text())
+    statements = template["Resources"]["CloudFormationRole"]["Properties"]["Policies"][0][
+        "PolicyDocument"
+    ]["Statement"]
+    tags = [s for s in statements if "apigateway:TagResource" in s["Action"]]
+    assert len(tags) == 1
+    assert "apigateway:UntagResource" in tags[0]["Action"]
+    assert tags[0]["Effect"] == "Allow"
+    assert {"Fn::Sub": "arn:${AWS::Partition}:apigateway:${AWS::Region}::/apis/*"} in tags[0][
+        "Resource"
+    ]
+    assert "*" not in tags[0]["Resource"]
 
 
 @pytest.mark.parametrize(

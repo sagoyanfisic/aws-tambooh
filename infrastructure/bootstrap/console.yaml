@@ -97,6 +97,11 @@ Resources:
         PolicyDocument:
           Version: '2012-10-17'
           Statement:
+          - Sid: UseSamTransform
+            Effect: Allow
+            Action: cloudformation:CreateChangeSet
+            Resource:
+              Fn::Sub: arn:${AWS::Partition}:cloudformation:${AWS::Region}:aws:transform/Serverless-2016-10-31
           - Effect: Allow
             Action:
             - lambda:CreateFunction
@@ -251,6 +256,8 @@ Resources:
             - apigateway:PUT
             - apigateway:PATCH
             - apigateway:DELETE
+            - apigateway:TagResource
+            - apigateway:UntagResource
             Resource:
             - Fn::Sub: arn:${AWS::Partition}:apigateway:${AWS::Region}::/apis
             - Fn::Sub: arn:${AWS::Partition}:apigateway:${AWS::Region}::/apis/*
@@ -307,6 +314,11 @@ Resources:
         PolicyDocument:
           Version: '2012-10-17'
           Statement:
+          - Sid: UseSamTransform
+            Effect: Allow
+            Action: cloudformation:CreateChangeSet
+            Resource:
+              Fn::Sub: arn:${AWS::Partition}:cloudformation:${AWS::Region}:aws:transform/Serverless-2016-10-31
           - Effect: Allow
             Action:
             - s3:GetBucketLocation

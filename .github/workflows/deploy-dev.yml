@@ -1,6 +1,11 @@
 name: Deploy dev
 on:
-  workflow_dispatch: {}
+  workflow_dispatch:
+    inputs:
+      execute_changeset:
+        description: Execute the change set (disable to review it without changing resources)
+        type: boolean
+        default: true
 permissions:
   contents: read
 concurrency:
@@ -12,6 +17,8 @@ jobs:
     environment: dev
     env:
       DEPLOY_ENV: dev
+      SAM_EXECUTE_CHANGESET: ${{ inputs.execute_changeset && 'true' || 'false' }}
+      AWS_RAW_DATA_BUCKET_NAME: ${{ vars.AWS_RAW_DATA_BUCKET_NAME }}
       AWS_REGION: ${{ vars.AWS_REGION || 'us-east-2' }}
       AWS_ARTIFACTS_BUCKET: ${{ vars.AWS_ARTIFACTS_BUCKET || 'tambooh-dev-artifacts-786638967830' }}
       AWS_CLOUDFORMATION_ROLE_ARN: ${{ vars.AWS_CLOUDFORMATION_ROLE_ARN || 'arn:aws:iam::786638967830:role/tambooh-dev-keys-cloudformation' }}
