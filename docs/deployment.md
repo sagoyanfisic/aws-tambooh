@@ -46,7 +46,7 @@ The existing OIDC trust reference/bootstrap script does not yet reflect GitHub's
 
 ## GitHub environment
 
-In sagoyanfisic/aws-tambooh, create environment `dev` and set:
+In sagoyanfisic/aws-tambooh, create environment `dev`. The dev workflow and the general workflow's dev selection default to these account-specific values. You can override them using environment variables:
 
 | Variable | Value |
 |---|---|
@@ -56,6 +56,8 @@ In sagoyanfisic/aws-tambooh, create environment `dev` and set:
 | AWS_CLOUDFORMATION_ROLE_ARN | arn:aws:iam::786638967830:role/tambooh-dev-cloudformation |
 
 These are environment variables, not access-key secrets. Role ARNs become usable only after the roles are created with their permissions and trust policies.
+
+Production has no fallback to these development resources. Selecting `prod` requires a separately configured deployment role in environment `production`; it must not use the development role to bypass setup.
 
 Deployments are manual: all deployment workflows use `workflow_dispatch`; pushing code does not deploy. Keep `master` as the default branch and use `dev` as the development branch. First merge the workflow definitions into `master`, since GitHub requires a manually triggered workflow to exist on the default branch before it appears as runnable in Actions.
 

@@ -14,9 +14,9 @@ jobs:
     env:
       DEPLOY_ENV: dev
       AWS_REGION: ${{ vars.AWS_REGION || 'us-east-2' }}
-      AWS_ARTIFACTS_BUCKET: ${{ vars.AWS_ARTIFACTS_BUCKET }}
-      AWS_CLOUDFORMATION_ROLE_ARN: ${{ vars.AWS_CLOUDFORMATION_ROLE_ARN }}
-      AWS_DEPLOY_ROLE_ARN: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
+      AWS_ARTIFACTS_BUCKET: ${{ vars.AWS_ARTIFACTS_BUCKET || 'tambooh-dev-artifacts-786638967830' }}
+      AWS_CLOUDFORMATION_ROLE_ARN: ${{ vars.AWS_CLOUDFORMATION_ROLE_ARN || 'arn:aws:iam::786638967830:role/tambooh-dev-cloudformation' }}
+      AWS_DEPLOY_ROLE_ARN: ${{ vars.AWS_DEPLOY_ROLE_ARN || 'arn:aws:iam::786638967830:role/tambooh-dev-github-deploy' }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
