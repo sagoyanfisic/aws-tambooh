@@ -7,13 +7,6 @@
       "Type": "Map",
       "ItemsPath": "$.sources",
       "MaxConcurrency": 1,
-      "Parameters": {
-        "action": "fetch",
-        "source_id.$": "$$.Map.Item.Value.source_id",
-        "source_url.$": "$$.Map.Item.Value.source_url",
-        "market.$": "$$.Map.Item.Value.market",
-        "institution.$": "$$.Map.Item.Value.institution"
-      },
       "Iterator": {
         "StartAt": "PaceDomain",
         "States": {

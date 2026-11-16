@@ -1,0 +1,12 @@
+{
+  "sources": [
+    {
+      "source_id": "sisap_mananero",
+      "source_url": "http://sistemas.midagri.gob.pe/sisap/intranet/mayoristas_lima/modulos/reporte_precios.pdf",
+      "market": "Gran Mercado Mayorista de Lima",
+      "institution": "MIDAGRI-DGESEP-DEIA",
+      "expected_observation_date": "2026-11-16",
+      "import_s3_key": "imports/sisap_mananero/reporte_precios.pdf"
+    }
+  ]
+}

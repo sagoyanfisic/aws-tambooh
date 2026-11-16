@@ -78,6 +78,9 @@ Resources:
               Action: [s3:GetObject, s3:PutObject]
               Resource: [!Sub '${RawDataBucket.Arn}/raw/*', !Sub '${RawDataBucket.Arn}/curated/prices/*']
             - Effect: Allow
+              Action: s3:GetObject
+              Resource: !Sub '${RawDataBucket.Arn}/imports/*'
+            - Effect: Allow
               Action: [dynamodb:GetItem, dynamodb:PutItem]
               Resource: !GetAtt PricesTable.Arn
       Environment:

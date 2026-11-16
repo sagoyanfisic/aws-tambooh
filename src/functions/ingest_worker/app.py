@@ -12,7 +12,14 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from src.common.models import SourceId
 from src.common.parsers import PARSER_VERSION, DatasetQualityError, parse_delimited, parse_pdf
-from src.common.sources import MAX_BYTES, OfficialClient, resolve_and_download
+from src.common.sources import (
+    MAX_BYTES,
+    OfficialClient,
+    SourceConfigurationError,
+    TransientSourceError,
+    resolve_and_download,
+    validate_source_url,
+)
 from src.common.storage import TransientStorageError, active_dataset, snapshot_id, store_records
 
 try:
@@ -37,6 +44,7 @@ class IngestEvent(BaseModel):
     institution: str = "MIDAGRI-DGESEP-DEIA"
     expected_observation_date: date | None = None
     raw_s3_key: str | None = None
+    import_s3_key: str | None = None
     retrieved_at: datetime | None = None
     sha256: str | None = Field(default=None, pattern=r"^[a-f0-9]{64}$")
     status: str | None = None
@@ -58,7 +66,25 @@ def fetch(event: IngestEvent):
     now = datetime.now(UTC)
     expected = event.expected_observation_date or now.astimezone(ZoneInfo("America/Lima")).date()
     last_modified = None
-    if event.fixture_text is not None:
+    acquisition = "network"
+    if event.import_s3_key:
+        if local_only() or not event.import_s3_key.startswith(f"imports/{event.source_id}/"):
+            raise ValueError("Import requires an object under imports/<source_id>/ in RAW_BUCKET")
+        if not event.source_url or not event.expected_observation_date:
+            raise ValueError(
+                "S3 import requires an official source_url and expected_observation_date"
+            )
+        validate_source_url(event.source_url)
+        import boto3
+
+        obj = boto3.client("s3").get_object(
+            Bucket=os.environ["RAW_BUCKET"], Key=event.import_s3_key
+        )
+        with obj["Body"] as stream:
+            payload = stream.read(MAX_BYTES + 1)
+        status, url = None, event.source_url
+        acquisition = "manual_s3_import"
+    elif event.fixture_text is not None:
         payload = event.fixture_text.encode()
         status, url = 200, event.source_url or "http://fixture.local/report.pdf"
     else:
@@ -112,10 +138,11 @@ def fetch(event: IngestEvent):
             Metadata={
                 "url": url,
                 "sha256": digest,
-                "http-status": str(status),
+                "http-status": str(status) if status is not None else "not-requested",
                 "retrieved-at": now.isoformat(),
                 "transport": result["transport"],
                 "last-modified": last_modified or "",
+                "acquisition": acquisition,
             },
         )
     except ClientError as exc:
@@ -207,6 +234,9 @@ def lambda_handler(event, context):
             extra={
                 "source_id": source,
                 "error_type": type(exc).__name__,
+                "reason": str(exc)[:600]
+                if isinstance(exc, (SourceConfigurationError, TransientSourceError))
+                else "See task error details",
                 "request_id": getattr(context, "aws_request_id", None),
             },
         )

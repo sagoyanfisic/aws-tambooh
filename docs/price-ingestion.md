@@ -6,9 +6,10 @@ The worker runs Python 3.12 on arm64. AWS inputs are validated by `IngestEvent`;
 
 - SISAP Mañanero uses its HTTP PDF URL. The recorded transport is `http_insecure`; HTTPS certificate checks remain enabled.
 - GMML constructs dated SIEA file paths using the supplied observation date. In September it tries `set` and then `sep` if the first file returns 404. These are supplied source patterns, not proof of live publication.
-- gob.pe discovery visits the collection and at most two matching month/date publication pages, then follows a dated PDF link. No `?sheet=`, SIEA directory listing or API endpoint is requested.
+- gob.pe discovery visits at most five HTML pages across collection, optional year collection, and matching month publication levels. It matches a PDF's exact date in its URL or anchor text, including encoded/numeric dates. No `sheet` pagination, SIEA directory listing or API endpoint is requested. It never substitutes an older observation for today's report.
 - Unrecognized publication links require an explicit dated `source_url`; the worker does not fabricate a dataset.
 - Official hosts are allow-listed, including redirect destinations. robots.txt must allow access. Requests are paced by domain at three seconds and retry transient network/429/5xx errors at most three attempts.
+- robots.txt can redirect up to five times within the official host allow-list; HTTPS downgrades are rejected. An unreachable policy still blocks network acquisition. Errors now include the robots/document URL, HTTP status or transport exception so TLS/DNS/timeouts can be distinguished. No inference about geographic IP blocking is made from a generic connection failure.
 - HTTP timeout is 10 seconds per operation, connect timeout 5 seconds, with a 110-second overall download budget. Lambda has 140 seconds and its task 150 seconds. Permanent HTTP errors are not retried.
 - Download size is capped at 12 MiB. Raw PDFs must begin with `%PDF`.
 
@@ -35,6 +36,21 @@ python scripts/backfill.py --source gmml_ingreso --from 2026-11-13 --to 2026-11-
 ```
 
 The local runner refuses AWS resource variables. Backfill uses each requested date for source discovery and validation; Mañanero has no historical endpoint and is rejected for backfill. Without AWS resource variables, backfill validates locally; with configured resources it can write to AWS and therefore requires deployment/operator authorization.
+
+## Manual official PDF import from S3
+
+Use this when an operator can obtain an official PDF but the source is inaccessible from Lambda. This is an explicit file import, not a successful live network download. The operator must verify the file's institution, source URL, market, wholesale units and observation date before uploading it. The pipeline verifies PDF structure, extracted date, table layout and values; it cannot authenticate the original publisher's bytes simply from a declared URL.
+
+1. Deploy the revised template and worker. The worker gains read-only access to `imports/*` in its own raw bucket. Normal raw/curated permissions remain separate.
+2. Download and inspect an official PDF using an authorized client. Keep the real source URL and date; never disable TLS certificate verification. A previously downloaded SISAP file is a historical import, not a newly fetched report.
+3. Upload it to the deployed raw bucket at `imports/sisap_mananero/reporte_precios.pdf` (or `imports/<other source_id>/...`). No other bucket is accepted by the worker.
+4. Copy `events/ingestion-s3.example.json` into a new Step Functions execution. **Replace its example date with the date printed inside your PDF** and set its source URL, source ID, market and institution to the actual document. `expected_observation_date` is required for imports. The normal `events/ingestion.json` remains the scheduled network workflow input.
+5. Fetch reads the S3 object, checks `%PDF` and size, and preserves a SHA-256 copy under `raw/`. Metadata records `acquisition=manual_s3_import` and `http-status=not-requested`. It does not contact the source or claim an HTTP response.
+6. Parse reads that raw reference, requires the PDF's date to match the declared observation, then uses the same validation, normalized records and atomic publication logic as network acquisition. Unsupported real table layouts still fail closed. Check each source's rows and errors, then verify `/api/v1/prices`.
+
+The Map state passes each source object intact so manual references and explicit historical dates reach Fetch. It continues to pass only raw references and hashes into Parse; PDFs never enter the state-machine payload. A source import is an AWS operator action and is not exposed through a public administrative endpoint.
+
+An initial deployed run failed before parsing: SISAP and SIEA exhausted retries on robots.txt, while the two gob.pe sources had no matching dated link within the earlier two-level search. That evidence does not establish an IP filter, absent publication, or working PDF parser for the current official layout. New discovery, better diagnostics and S3 imports are locally tested until redeployed and run with a real file.
 
 ## Verification boundaries
 

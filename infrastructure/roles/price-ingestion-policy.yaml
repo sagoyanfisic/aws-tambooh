@@ -2,6 +2,9 @@
 Version: '2012-10-17'
 Statement:
   - Effect: Allow
+    Action: s3:GetObject
+    Resource: arn:aws:s3:::<RAW_BUCKET>/imports/*
+  - Effect: Allow
     Action: [s3:GetObject, s3:PutObject]
     Resource: [arn:aws:s3:::<RAW_BUCKET>/raw/*, arn:aws:s3:::<RAW_BUCKET>/curated/prices/*]
   - Effect: Allow
