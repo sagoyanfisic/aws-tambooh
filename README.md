@@ -68,9 +68,12 @@ Run the frontend:
 
 ```bash
 cd frontend
-npm install
+npm ci
+npm test
 npm run dev
 ```
+
+Copy `frontend/.env.example` to `frontend/.env` to select the public API base URL for local development. The deployment workflow obtains it from CloudFormation automatically. See [Frontend](docs/frontend.md) for its data states, tests, required upload permissions and publication flow.
 
 The API handler can be invoked locally through SAM or directly from Python:
 
@@ -134,7 +137,7 @@ See [docs/price-ingestion.md](docs/price-ingestion.md) for source limitations, S
 
 The configured target is account `786638967830`, region `us-east-2` (Ohio). Create the private artifact bucket `tambooh-dev-artifacts-786638967830` and the deployment roles before running the workflow. Exact prerequisites and GitHub environment variables are in [Deployment](docs/deployment.md).
 
-The AWS Projects account blocked OIDC provider creation. For the requested dev alternative, follow [Access-key deployment](docs/access-keys-deployment.md): upload the standalone CloudFormation template, create the dedicated user's key manually, and store it only in GitHub environment secrets. The workflow verifies the target account before deployment. Static credentials remain subject to SCP restrictions; live provisioning is not yet verified. Production retains the separate [OIDC bootstrap](docs/bootstrap-access.md).
+The AWS Projects account blocked OIDC provider creation. For the requested dev alternative, follow [Access-key deployment](docs/access-keys-deployment.md): upload the standalone CloudFormation template, create the dedicated user's key manually, and store it only in GitHub environment secrets. The workflow verifies the target account before deployment. Static credentials remain subject to SCP restrictions. The operator has confirmed the dev stack and a successful manual PDF ingestion; new frontend publication still requires deployment. Production retains the separate [OIDC bootstrap](docs/bootstrap-access.md).
 
 For optional Claude, create the Anthropic secret outside SAM in us-east-2. Ingestion can deploy with AI disabled and no secret. Do not pass the API key as a CloudFormation parameter:
 
@@ -161,7 +164,7 @@ sam deploy --guided
 Or use the helper script after `samconfig.toml` is configured:
 
 ```bash
-scripts/deploy.sh dev
+AWS_PROFILE=YOUR_TAMBOOH_PROFILE bash scripts/deploy.sh dev
 ```
 
 Development deployment reads its dedicated IAM access keys from GitHub environment secrets. Production retains OIDC federation and requires approval configured through a protected GitHub environment. Neither workflow stores credentials in source files.
@@ -178,7 +181,7 @@ Step Functions JSON   valid
 SAM template          valid with sam validate --lint
 ```
 
-No AWS deployment or production verification is claimed. Live MIDAGRI access depends on network/DNS reachability and possible source-side IP filtering. Real PDF fixtures for all four source families should be added when the official files are reachable. Unknown table layouts fail validation. The SAM Makefile installs Python 3.12 Linux arm64 wheels and copies only backend/src Python code into artifacts; the local build attempt was blocked by unavailable package-registry access.
+The operator confirmed a dev deployment in us-east-2, successful Step Functions execution ef7910e6-dd7f-4e4b-bd8d-f9815f293e74, and an API response with 18 wholesale records from the manually uploaded 2026-11-16 Mañanero PDF. Automatic source downloads remain incomplete: SISAP/SIEA connections timed out and the gob.pe search did not locate the requested report. That evidence does not prove geographic IP filtering. A real Mañanero PDF fixture now tests its two-row header; the other source layouts remain unverified. Production readiness is not claimed. The new frontend reads published API data and has an automated private-S3 publication path; its AWS publication and browser verification remain pending an operator deployment. See [Frontend](docs/frontend.md).
 
 The ingestion API reads active manifests and complete versioned S3 snapshots. Failed staging writes leave the last active publication visible. Source processing is serialized in the Map to respect shared-domain pacing. Production recipe planning requires verified product-to-recipe mappings; the API returns DATA_UNAVAILABLE rather than a zero-cost incomplete meal. Historical trend output is marked insufficient_history until a compatible history calculation service is implemented.
 
@@ -186,6 +189,7 @@ The ingestion API reads active manifests and complete versioned S3 snapshots. Fa
 
 - [Architecture](docs/architecture.md)
 - [Deployment](docs/deployment.md)
+- [Frontend and publication](docs/frontend.md)
 - [Security](docs/security.md)
 - [Claude integration](docs/claude-integration.md)
 - [MIDAGRI ingestion](docs/price-ingestion.md)

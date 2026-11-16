@@ -57,3 +57,10 @@ jobs:
       - uses: aws-actions/setup-sam@v2
       - name: Build and deploy
         run: bash scripts/deploy.sh "$DEPLOY_ENV"
+      - uses: actions/setup-node@v4
+        if: inputs.execute_changeset
+        with:
+          node-version: '22'
+      - name: Build and publish frontend
+        if: inputs.execute_changeset
+        run: python scripts/deploy_frontend.py "$DEPLOY_ENV"

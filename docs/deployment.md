@@ -91,6 +91,6 @@ First deploy with `EnableAI=false`; no Anthropic secret is required for ingestio
 
 Inspect CloudFormation outputs for `IngestionStateMachineArn`, `RawBucketName` and `ApiUrl`. Start the first ingestion manually using `events/ingestion.json` and inspect every source result. Successful infrastructure deployment does not prove that MIDAGRI is reachable or that its live PDF layouts are supported.
 
-The Lambda workflow deploys the stack but does not upload frontend assets. Build the React app and upload its build separately to `FrontendBucketName`, served through `FrontendDistributionDomain`.
+Full deployment workflows now build and publish the frontend after SAM completes. First update the access bootstrap for the narrowly scoped frontend upload permission. See [frontend deployment and verification](frontend.md). Review-only SAM runs skip publication; the publisher obtains its API URL and private bucket from stack outputs and verifies the served HTML.
 
 Production data mode is DynamoDB. `TAMBOOH_DATA_MODE=demo` is only for local demonstrations; demo fixtures are not included in the Lambda build artifacts.

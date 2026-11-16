@@ -15,6 +15,7 @@ Parameters:
     Description: Optional explicit name for a new or imported raw bucket. Empty lets CloudFormation assign a name.
 Conditions:
   HasRawDataBucketName: !Not [!Equals [!Ref RawDataBucketName, '']]
+  IsDev: !Equals [!Ref Environment, dev]
 Globals:
   Function:
     Runtime: python3.12
@@ -29,7 +30,13 @@ Resources:
     Type: AWS::Serverless::HttpApi
     Properties:
       StageName: !Ref Environment
-      CorsConfiguration: {AllowOrigins: ['*'], AllowHeaders: ['content-type'], AllowMethods: ['GET','POST','OPTIONS']}
+      CorsConfiguration:
+        AllowOrigins: !If
+          - IsDev
+          - [!Sub 'https://${FrontendDistribution.DomainName}', 'http://localhost:5173']
+          - [!Sub 'https://${FrontendDistribution.DomainName}']
+        AllowHeaders: ['content-type']
+        AllowMethods: ['GET', 'POST', 'OPTIONS']
       DefaultRouteSettings: {ThrottlingBurstLimit: 50, ThrottlingRateLimit: 20}
   ApiFunction:
     Type: AWS::Serverless::Function
@@ -137,7 +144,9 @@ Resources:
       LifecycleConfiguration: {Rules: [{Id: ExpireRawData, Status: Enabled, Prefix: raw/, ExpirationInDays: 90}]}
   FrontendBucket:
     Type: AWS::S3::Bucket
-    Properties: {BucketEncryption: {ServerSideEncryptionConfiguration: [{ServerSideEncryptionByDefault: {SSEAlgorithm: AES256}}]}}
+    Properties:
+      BucketEncryption: {ServerSideEncryptionConfiguration: [{ServerSideEncryptionByDefault: {SSEAlgorithm: AES256}}]}
+      PublicAccessBlockConfiguration: {BlockPublicAcls: true, BlockPublicPolicy: true, IgnorePublicAcls: true, RestrictPublicBuckets: true}
   FrontendOriginAccessControl:
     Type: AWS::CloudFront::OriginAccessControl
     Properties:
@@ -150,7 +159,7 @@ Resources:
         DefaultRootObject: index.html
         HttpVersion: http2
         Origins: [{Id: frontend-s3, DomainName: !GetAtt FrontendBucket.RegionalDomainName, OriginAccessControlId: !GetAtt FrontendOriginAccessControl.Id, S3OriginConfig: {}}]
-        DefaultCacheBehavior: {TargetOriginId: frontend-s3, ViewerProtocolPolicy: redirect-to-https, Compress: true, AllowedMethods: [GET, HEAD, OPTIONS], CachedMethods: [GET, HEAD], ForwardedValues: {QueryString: false, Cookies: {Forward: none}}}
+        DefaultCacheBehavior: {TargetOriginId: frontend-s3, ViewerProtocolPolicy: redirect-to-https, Compress: true, AllowedMethods: [GET, HEAD, OPTIONS], CachedMethods: [GET, HEAD], MinTTL: 0, DefaultTTL: 0, MaxTTL: 31536000, ForwardedValues: {QueryString: false, Cookies: {Forward: none}}}
         ViewerCertificate: {CloudFrontDefaultCertificate: true}
   FrontendBucketPolicy:
     Type: AWS::S3::BucketPolicy

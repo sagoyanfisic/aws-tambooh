@@ -314,6 +314,14 @@ Resources:
         PolicyDocument:
           Version: '2012-10-17'
           Statement:
+          - Effect: Allow
+            Action: [s3:GetBucketLocation, s3:ListBucket]
+            Resource:
+              Fn::Sub: arn:${AWS::Partition}:s3:::tambooh-${Environment}-frontendbucket-*
+          - Effect: Allow
+            Action: s3:PutObject
+            Resource:
+              Fn::Sub: arn:${AWS::Partition}:s3:::tambooh-${Environment}-frontendbucket-*/*
           - Sid: UseSamTransform
             Effect: Allow
             Action: cloudformation:CreateChangeSet

@@ -1,5 +1,7 @@
 # Security
 
+The revised frontend requests public prices without cookies or authentication headers. Its household demo values stay in memory and are not sent to the backend. Only the API base URL is exposed through Vite configuration. CORS in SAM is restricted to the actual CloudFront origin and, for dev, localhost:5173. The private frontend bucket has explicit public access blocking and CloudFront OAC. Publishing credentials can list/write the environment-specific frontend bucket namespace but cannot delete objects or grant public ACLs. The new UI and publishing path require a new operator deployment; local tests do not establish production readiness.
+
 Runtime roles are separate from deployment roles. S3 blocks public access and encrypts data; DynamoDB uses on-demand billing, encryption, and point-in-time recovery. API inputs are Pydantic-validated. API Gateway throttling is configured in SAM. Claude is opt-in, bounded to 350 output tokens, low temperature, and never owns arithmetic. Do not put household-identifying data in logs.
 
 Development deployment uses dedicated IAM access keys in GitHub environment secrets, as requested after AWS Projects blocked OIDC provider creation. See [access-key setup](access-keys-deployment.md). Keys are created manually, never as CloudFormation resources or outputs, and must be rotated/revoked. The IAM user can deploy only through the separate CloudFormation execution role. GitHub jobs verify account 786638967830 and region us-east-2 before deployment. These credentials remain subject to account SCPs.
