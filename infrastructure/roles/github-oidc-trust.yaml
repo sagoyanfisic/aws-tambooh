@@ -1,11 +1,12 @@
-# Replace placeholders with immutable owner/repository/environment identifiers.
+# Reference only. Copy the EXACT sub from the deployment's Inspect OIDC step.
+# New immutable subjects include names AND numeric IDs, not IDs alone.
 Version: '2012-10-17'
 Statement:
   - Effect: Allow
-    Principal: {Federated: arn:aws:iam::<ACCOUNT_ID>:oidc-provider/token.actions.githubusercontent.com}
+    Principal: {Federated: arn:aws:iam::786638967830:oidc-provider/token.actions.githubusercontent.com}
     Action: sts:AssumeRoleWithWebIdentity
     Condition:
       StringEquals:
         token.actions.githubusercontent.com:aud: sts.amazonaws.com
-        token.actions.githubusercontent.com:sub: repo:<OWNER_ID>/<REPOSITORY_ID>:environment:<ENVIRONMENT_ID>
+        token.actions.githubusercontent.com:sub: '<EXACT_VERIFIED_SUB_FOR_ENVIRONMENT_DEV>'
 

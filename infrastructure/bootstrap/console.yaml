@@ -1,0 +1,386 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: TamBooh dev access for account 786638967830 in us-east-2. Reuse existing bucket/provider and create
+  isolated bootstrap roles.
+Parameters:
+  Environment:
+    Type: String
+    Default: dev
+    AllowedValues:
+    - dev
+  GitHubOidcSubject:
+    Type: String
+    Description: Exact sub copied from Inspect OIDC for environment dev. No wildcards.
+    AllowedPattern: repo:sagoyanfisic(?:@[0-9]+)?/aws-tambooh(?:@[0-9]+)?:environment:dev
+  ExistingOidcProviderArn:
+    Type: String
+    Default: ''
+    Description: If GitHub's provider already exists, paste its ARN; otherwise leave empty to create it.
+    AllowedPattern: ^$|^arn:aws:iam::786638967830:oidc-provider/token\.actions\.githubusercontent\.com$
+  AccessRolePrefix:
+    Type: String
+    Default: tambooh-dev-bootstrap
+    AllowedPattern: tambooh-dev-[a-z0-9-]+
+    MaxLength: 40
+    Description: Unique prefix for NEW IAM roles; avoids names previously created manually.
+  ExistingArtifactBucketName:
+    Type: String
+    Default: tambooh-dev-artifacts-786638967830
+    AllowedValues:
+    - ''
+    - tambooh-dev-artifacts-786638967830
+    Description: Keep the existing artifact bucket name, or clear to create it if absent.
+Conditions:
+  CorrectAccountAndRegion:
+    Fn::And:
+    - Fn::Equals:
+      - Ref: AWS::AccountId
+      - '786638967830'
+    - Fn::Equals:
+      - Ref: AWS::Region
+      - us-east-2
+  CreateProvider:
+    Fn::And:
+    - Condition: CorrectAccountAndRegion
+    - Fn::Equals:
+      - Ref: ExistingOidcProviderArn
+      - ''
+  CreateArtifactBucket:
+    Fn::And:
+    - Condition: CorrectAccountAndRegion
+    - Fn::Equals:
+      - Ref: ExistingArtifactBucketName
+      - ''
+Resources:
+  GitHubOidcProvider:
+    Type: AWS::IAM::OIDCProvider
+    Condition: CreateProvider
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      Url: https://token.actions.githubusercontent.com
+      ClientIdList:
+      - sts.amazonaws.com
+  ArtifactBucket:
+    Type: AWS::S3::Bucket
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      BucketName:
+        Fn::Sub: tambooh-${Environment}-artifacts-${AWS::AccountId}
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+        - ServerSideEncryptionByDefault:
+            SSEAlgorithm: AES256
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      VersioningConfiguration:
+        Status: Enabled
+    Condition: CreateArtifactBucket
+  CloudFormationRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName:
+        Fn::Sub: ${AccessRolePrefix}-cloudformation
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+        - Effect: Allow
+          Principal:
+            Service: cloudformation.amazonaws.com
+          Action: sts:AssumeRole
+      Policies:
+      - PolicyName: ApplicationResources
+        PolicyDocument:
+          Version: '2012-10-17'
+          Statement:
+          - Effect: Allow
+            Action:
+            - lambda:CreateFunction
+            - lambda:GetFunction
+            - lambda:GetFunctionConfiguration
+            - lambda:UpdateFunctionCode
+            - lambda:UpdateFunctionConfiguration
+            - lambda:DeleteFunction
+            - lambda:AddPermission
+            - lambda:RemovePermission
+            - lambda:GetPolicy
+            - lambda:TagResource
+            - lambda:UntagResource
+            - lambda:ListTags
+            Resource:
+              Fn::Sub: arn:${AWS::Partition}:lambda:${AWS::Region}:${AWS::AccountId}:function:tambooh-${Environment}-*
+          - Effect: Allow
+            Action:
+            - iam:CreateRole
+            - iam:GetRole
+            - iam:DeleteRole
+            - iam:UpdateAssumeRolePolicy
+            - iam:PutRolePolicy
+            - iam:GetRolePolicy
+            - iam:DeleteRolePolicy
+            - iam:AttachRolePolicy
+            - iam:DetachRolePolicy
+            - iam:ListRolePolicies
+            - iam:ListAttachedRolePolicies
+            - iam:TagRole
+            - iam:UntagRole
+            - iam:ListRoleTags
+            Resource:
+            - Fn::Sub: arn:${AWS::Partition}:iam::${AWS::AccountId}:role/tambooh-${Environment}-ApiFunctionRole-*
+            - Fn::Sub: arn:${AWS::Partition}:iam::${AWS::AccountId}:role/tambooh-${Environment}-AIExplainFunctionRole-*
+            - Fn::Sub: arn:${AWS::Partition}:iam::${AWS::AccountId}:role/tambooh-${Environment}-PriceWorkerFunctionRole-*
+            - Fn::Sub: arn:${AWS::Partition}:iam::${AWS::AccountId}:role/tambooh-${Environment}-IngestionReportFunctionRole-*
+            - Fn::Sub: arn:${AWS::Partition}:iam::${AWS::AccountId}:role/tambooh-${Environment}-IngestionStateMachineRole-*
+            - Fn::Sub: arn:${AWS::Partition}:iam::${AWS::AccountId}:role/tambooh-${Environment}-EventsRole-*
+          - Effect: Allow
+            Action: iam:PassRole
+            Resource:
+            - Fn::Sub: arn:${AWS::Partition}:iam::${AWS::AccountId}:role/tambooh-${Environment}-ApiFunctionRole-*
+            - Fn::Sub: arn:${AWS::Partition}:iam::${AWS::AccountId}:role/tambooh-${Environment}-AIExplainFunctionRole-*
+            - Fn::Sub: arn:${AWS::Partition}:iam::${AWS::AccountId}:role/tambooh-${Environment}-PriceWorkerFunctionRole-*
+            - Fn::Sub: arn:${AWS::Partition}:iam::${AWS::AccountId}:role/tambooh-${Environment}-IngestionReportFunctionRole-*
+            - Fn::Sub: arn:${AWS::Partition}:iam::${AWS::AccountId}:role/tambooh-${Environment}-IngestionStateMachineRole-*
+            - Fn::Sub: arn:${AWS::Partition}:iam::${AWS::AccountId}:role/tambooh-${Environment}-EventsRole-*
+            Condition:
+              StringEquals:
+                iam:PassedToService:
+                - lambda.amazonaws.com
+                - states.amazonaws.com
+                - scheduler.amazonaws.com
+          - Effect: Allow
+            Action:
+            - s3:CreateBucket
+            - s3:DeleteBucket
+            - s3:GetBucketLocation
+            - s3:ListBucket
+            - s3:GetBucketPolicy
+            - s3:PutBucketPolicy
+            - s3:DeleteBucketPolicy
+            - s3:GetEncryptionConfiguration
+            - s3:PutEncryptionConfiguration
+            - s3:GetBucketPublicAccessBlock
+            - s3:PutBucketPublicAccessBlock
+            - s3:GetLifecycleConfiguration
+            - s3:PutLifecycleConfiguration
+            - s3:GetBucketTagging
+            - s3:PutBucketTagging
+            - s3:GetBucketVersioning
+            - s3:PutBucketVersioning
+            - s3:GetBucketOwnershipControls
+            - s3:PutBucketOwnershipControls
+            - s3:GetBucket*
+            - s3:GetReplicationConfiguration
+            - s3:GetAccelerateConfiguration
+            - s3:GetBucketNotification
+            Resource:
+            - Fn::Sub: arn:${AWS::Partition}:s3:::tambooh-${Environment}-rawdatabucket-*
+            - Fn::Sub: arn:${AWS::Partition}:s3:::tambooh-${Environment}-frontendbucket-*
+          - Effect: Allow
+            Action: s3:GetObject
+            Resource:
+              Fn::If:
+              - CreateArtifactBucket
+              - Fn::Sub: ${ArtifactBucket.Arn}/*
+              - Fn::Sub: arn:${AWS::Partition}:s3:::${ExistingArtifactBucketName}/*
+          - Effect: Allow
+            Action:
+            - dynamodb:CreateTable
+            - dynamodb:DescribeTable
+            - dynamodb:UpdateTable
+            - dynamodb:DeleteTable
+            - dynamodb:DescribeContinuousBackups
+            - dynamodb:UpdateContinuousBackups
+            - dynamodb:ListTagsOfResource
+            - dynamodb:TagResource
+            - dynamodb:UntagResource
+            Resource:
+              Fn::Sub: arn:${AWS::Partition}:dynamodb:${AWS::Region}:${AWS::AccountId}:table/tambooh-${Environment}-prices
+          - Effect: Allow
+            Action:
+            - states:CreateStateMachine
+            - states:DescribeStateMachine
+            - states:UpdateStateMachine
+            - states:DeleteStateMachine
+            - states:ListTagsForResource
+            - states:TagResource
+            - states:UntagResource
+            Resource:
+              Fn::Sub: arn:${AWS::Partition}:states:${AWS::Region}:${AWS::AccountId}:stateMachine:tambooh-${Environment}-price-ingestion
+          - Effect: Allow
+            Action:
+            - scheduler:CreateSchedule
+            - scheduler:GetSchedule
+            - scheduler:UpdateSchedule
+            - scheduler:DeleteSchedule
+            Resource:
+              Fn::Sub: arn:${AWS::Partition}:scheduler:${AWS::Region}:${AWS::AccountId}:schedule/default/tambooh-${Environment}-*
+          - Effect: Allow
+            Action:
+            - logs:CreateLogGroup
+            - logs:DescribeLogGroups
+            - logs:DeleteLogGroup
+            - logs:PutRetentionPolicy
+            - logs:DeleteRetentionPolicy
+            - logs:TagResource
+            - logs:UntagResource
+            - logs:ListTagsForResource
+            Resource:
+              Fn::Sub: arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/tambooh-${Environment}-*
+          - Effect: Allow
+            Action:
+            - cloudwatch:PutMetricAlarm
+            - cloudwatch:DeleteAlarms
+            - cloudwatch:EnableAlarmActions
+            - cloudwatch:DisableAlarmActions
+            - cloudwatch:TagResource
+            - cloudwatch:UntagResource
+            - cloudwatch:ListTagsForResource
+            Resource:
+              Fn::Sub: arn:${AWS::Partition}:cloudwatch:${AWS::Region}:${AWS::AccountId}:alarm:tambooh-${Environment}-*
+          - Effect: Allow
+            Action: cloudwatch:DescribeAlarms
+            Resource: '*'
+          - Effect: Allow
+            Action:
+            - apigateway:GET
+            - apigateway:POST
+            - apigateway:PUT
+            - apigateway:PATCH
+            - apigateway:DELETE
+            Resource:
+            - Fn::Sub: arn:${AWS::Partition}:apigateway:${AWS::Region}::/apis
+            - Fn::Sub: arn:${AWS::Partition}:apigateway:${AWS::Region}::/apis/*
+            - Fn::Sub: arn:${AWS::Partition}:apigateway:${AWS::Region}::/tags/*
+          - Effect: Allow
+            Action:
+            - cloudfront:CreateDistribution
+            - cloudfront:CreateOriginAccessControl
+            - cloudfront:CreateDistributionWithTags
+            Resource: '*'
+          - Effect: Allow
+            Action:
+            - cloudfront:GetDistribution
+            - cloudfront:GetDistributionConfig
+            - cloudfront:UpdateDistribution
+            - cloudfront:DeleteDistribution
+            - cloudfront:TagResource
+            - cloudfront:UntagResource
+            - cloudfront:ListTagsForResource
+            Resource:
+              Fn::Sub: arn:${AWS::Partition}:cloudfront::${AWS::AccountId}:distribution/*
+          - Effect: Allow
+            Action:
+            - cloudfront:GetOriginAccessControl
+            - cloudfront:GetOriginAccessControlConfig
+            - cloudfront:UpdateOriginAccessControl
+            - cloudfront:DeleteOriginAccessControl
+            Resource:
+              Fn::Sub: arn:${AWS::Partition}:cloudfront::${AWS::AccountId}:origin-access-control/*
+    Condition: CorrectAccountAndRegion
+  GitHubDeploymentRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName:
+        Fn::Sub: ${AccessRolePrefix}-github-deploy
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+        - Effect: Allow
+          Principal:
+            Federated:
+              Fn::If:
+              - CreateProvider
+              - Ref: GitHubOidcProvider
+              - Ref: ExistingOidcProviderArn
+          Action: sts:AssumeRoleWithWebIdentity
+          Condition:
+            StringEquals:
+              token.actions.githubusercontent.com:aud: sts.amazonaws.com
+              token.actions.githubusercontent.com:sub:
+                Ref: GitHubOidcSubject
+      Policies:
+      - PolicyName: DeployApplication
+        PolicyDocument:
+          Version: '2012-10-17'
+          Statement:
+          - Effect: Allow
+            Action:
+            - s3:GetBucketLocation
+            - s3:ListBucket
+            Resource:
+              Fn::If:
+              - CreateArtifactBucket
+              - Fn::GetAtt:
+                - ArtifactBucket
+                - Arn
+              - Fn::Sub: arn:${AWS::Partition}:s3:::${ExistingArtifactBucketName}
+          - Effect: Allow
+            Action:
+            - s3:GetObject
+            - s3:PutObject
+            Resource:
+              Fn::If:
+              - CreateArtifactBucket
+              - Fn::Sub: ${ArtifactBucket.Arn}/*
+              - Fn::Sub: arn:${AWS::Partition}:s3:::${ExistingArtifactBucketName}/*
+          - Effect: Allow
+            Action:
+            - cloudformation:CreateChangeSet
+            - cloudformation:DescribeChangeSet
+            - cloudformation:ExecuteChangeSet
+            - cloudformation:DeleteChangeSet
+            - cloudformation:DescribeStacks
+            - cloudformation:DescribeStackEvents
+            - cloudformation:DescribeStackResource
+            - cloudformation:ListStackResources
+            - cloudformation:ListChangeSets
+            - cloudformation:GetTemplate
+            Resource:
+            - Fn::Sub: arn:${AWS::Partition}:cloudformation:${AWS::Region}:${AWS::AccountId}:stack/tambooh-${Environment}/*
+            - Fn::Sub: arn:${AWS::Partition}:cloudformation:${AWS::Region}:${AWS::AccountId}:changeSet/samcli-deploy*/*
+          - Effect: Allow
+            Action:
+            - cloudformation:GetTemplateSummary
+            - cloudformation:ValidateTemplate
+            Resource: '*'
+          - Effect: Allow
+            Action: iam:PassRole
+            Resource:
+              Fn::GetAtt:
+              - CloudFormationRole
+              - Arn
+            Condition:
+              StringEquals:
+                iam:PassedToService: cloudformation.amazonaws.com
+    Condition: CorrectAccountAndRegion
+Outputs:
+  GitHubDeploymentRoleArn:
+    Value:
+      Fn::GetAtt:
+      - GitHubDeploymentRole
+      - Arn
+    Condition: CorrectAccountAndRegion
+    Description: Copy into GitHub environment dev variable AWS_DEPLOY_ROLE_ARN
+  CloudFormationExecutionRoleArn:
+    Value:
+      Fn::GetAtt:
+      - CloudFormationRole
+      - Arn
+    Condition: CorrectAccountAndRegion
+    Description: Copy into GitHub environment dev variable AWS_CLOUDFORMATION_ROLE_ARN
+  ArtifactsBucketName:
+    Value:
+      Fn::If:
+      - CreateArtifactBucket
+      - Ref: ArtifactBucket
+      - Ref: ExistingArtifactBucketName
+    Condition: CorrectAccountAndRegion
+    Description: Copy into GitHub environment dev variable AWS_ARTIFACTS_BUCKET
+  DeploymentRegion:
+    Value:
+      Ref: AWS::Region
+    Condition: CorrectAccountAndRegion
+    Description: Copy into GitHub environment dev variable AWS_REGION
