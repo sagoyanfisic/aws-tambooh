@@ -132,11 +132,14 @@ See [docs/price-ingestion.md](docs/price-ingestion.md) for source limitations, S
 
 ## AWS deployment
 
-Create the Anthropic secret outside SAM. Do not pass the API key as a CloudFormation parameter:
+The configured target is account `786638967830`, region `us-east-2` (Ohio). Create the private artifact bucket `tambooh-dev-artifacts-786638967830` and the deployment roles before running the workflow. Exact prerequisites and GitHub environment variables are in [Deployment](docs/deployment.md).
+
+For optional Claude, create the Anthropic secret outside SAM in us-east-2. Ingestion can deploy with AI disabled and no secret. Do not pass the API key as a CloudFormation parameter:
 
 ```bash
 aws secretsmanager create-secret \
   --name tambooh/dev/anthropic-api-key \
+  --region us-east-2 \
   --secret-string '{"ANTHROPIC_API_KEY":"YOUR_KEY"}'
 ```
 
@@ -160,6 +163,8 @@ scripts/deploy.sh dev
 ```
 
 The GitHub Actions deployment uses short-lived credentials through GitHub OIDC. No permanent AWS access keys are required. Production approval must be configured as a protected GitHub environment.
+
+Deployments run on demand. After the workflows exist on the default branch `master`, open **Actions → Deploy dev → Run workflow**, select branch **dev**, and start the run. Pushes and pull requests run validation through CI but do not deploy. The GitHub environment `dev` must permit deployments from the branch `dev`.
 
 ## Current validation status
 

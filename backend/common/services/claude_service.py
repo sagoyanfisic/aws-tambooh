@@ -26,7 +26,7 @@ def _api_key() -> str | None:
         return None
     try:
         import boto3
-        raw = boto3.client("secretsmanager", region_name=os.getenv("AWS_REGION", "us-east-1")).get_secret_value(SecretId=secret_id)["SecretString"]
+        raw = boto3.client("secretsmanager", region_name=os.getenv("AWS_REGION", "us-east-2")).get_secret_value(SecretId=secret_id)["SecretString"]
         parsed = json.loads(raw)
         _secret_cache = parsed.get("ANTHROPIC_API_KEY", raw)
         return _secret_cache

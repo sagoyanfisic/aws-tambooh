@@ -38,4 +38,4 @@ The local runner refuses AWS resource variables. Backfill uses each requested da
 
 ## Verification boundaries
 
-Text fixtures and mocked PDF table extraction test validation and column mapping. Source discovery tests use simulated official pages. They are not official PDF fixtures. Real source layouts, accessibility from us-east-1 and native arm64 package installation still require verification with reachable official files and a working package registry. An unsupported real layout fails closed and requires a source-specific adapter. There is no claim that all four live PDFs are already verified.
+Text fixtures and mocked PDF table extraction test validation and column mapping. Source discovery tests use simulated official pages. They are not official PDF fixtures. Real source layouts, accessibility from us-east-2 and native arm64 package installation still require verification with reachable official files and a working package registry. An unsupported real layout fails closed and requires a source-specific adapter. There is no claim that all four live PDFs are already verified.
