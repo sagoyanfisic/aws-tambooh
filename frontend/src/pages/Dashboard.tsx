@@ -1,5 +1,7 @@
 import { useMemo, useState } from "react";
 import PriceCard from "../components/PriceCard";
+import ScenarioSimulator from "../components/ScenarioSimulator";
+import ShoppingPlanner from "../components/ShoppingPlanner";
 import { usePrices } from "../hooks/usePrices";
 import { ageInDays, filterPrices, formatDate } from "../services/presentation";
 
@@ -7,8 +9,6 @@ export default function Dashboard() {
   const { data, loading, error, refresh } = usePrices();
   const [query, setQuery] = useState("");
   const [market, setMarket] = useState("");
-  const [people, setPeople] = useState(4);
-  const [budget, setBudget] = useState(65);
   const items = data?.items ?? [];
   const markets = useMemo(
     () => [...new Set(items.map((item) => item.market))].sort(),
@@ -37,6 +37,8 @@ export default function Dashboard() {
           </a>
           <nav aria-label="Navegación principal">
             <a href="#precios">Precios</a>
+            <a href="#compras">Compras</a>
+            <a href="#escenarios">Escenarios</a>
             <a href="#fuentes">Fuentes</a>
             <a href="#hogar">Mi hogar</a>
           </nav>
@@ -297,50 +299,30 @@ export default function Dashboard() {
             aria-labelledby="household-title"
           >
             <p className="eyebrow">Pensemos en tu semana</p>
-            <h2 id="household-title">Una referencia para tu hogar</h2>
+            <h2 id="household-title">Escenario de demostración</h2>
             <p>
-              Configura el escenario de demostración. Estos valores no se
-              guardan y todavía no generan un menú ni una lista de compras.
+              Este hogar de ejemplo usa cuatro integrantes y un presupuesto
+              semanal ilustrativo de USD 65. La lista no compara el presupuesto
+              en dólares porque aún no hay un tipo de cambio fechado y validado.
             </p>
-            <div className="household-fields">
-              <label>
-                Integrantes
-                <input
-                  type="number"
-                  min="1"
-                  max="20"
-                  value={people}
-                  onChange={(event) => {
-                    const value = Number(event.target.value);
-                    if (Number.isInteger(value) && value >= 1 && value <= 20)
-                      setPeople(value);
-                  }}
-                />
-              </label>
-              <label>
-                Presupuesto semanal (USD)
-                <input
-                  type="number"
-                  min="1"
-                  max="10000"
-                  value={budget}
-                  onChange={(event) => {
-                    const value = Number(event.target.value);
-                    if (Number.isFinite(value) && value >= 1 && value <= 10000)
-                      setBudget(value);
-                  }}
-                />
-              </label>
+            <div className="demo-scenario" aria-label="Supuesto ilustrativo">
+              <div><strong>4</strong><span>integrantes</span></div>
+              <div><strong>USD 65</strong><span>por semana · ilustrativo</span></div>
             </div>
             <p className="budget-note">
-              USD {budget} para {people}{" "}
-              {people === 1 ? "integrante" : "integrantes"} es una referencia
-              ilustrativa, no el costo oficial de una canasta. Los precios se
-              muestran en PEN: no aplicamos un tipo de cambio sin una fuente
-              validada.
+              Ingresa directamente las cantidades que planeas comprar. No se
+              guardan en una cuenta y no representan una canasta oficial.
             </p>
           </section>
         </div>
+        <ShoppingPlanner
+          prices={items}
+          apiBase={import.meta.env.VITE_API_BASE_URL || ""}
+        />
+        <ScenarioSimulator
+          prices={items}
+          apiBase={import.meta.env.VITE_API_BASE_URL || ""}
+        />
       </main>
       <footer className="site-footer">
         <div className="shell footer-inner">

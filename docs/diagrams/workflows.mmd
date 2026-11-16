@@ -1,7 +1,10 @@
 ```mermaid
 flowchart TD
- A[Configure household] --> B[Load attributed prices] --> C[Deterministic meal plan] --> D[Deduct pantry inventory] --> E[Shopping list and reserve]
- E --> F[Optional grounded explanation]
- G[Simulated percentage change] --> H[Clearly labeled scenario result]
+ A[Load attributed published wholesale prices] --> B[Select exact product market and source]
+ B --> C[Enter quantity and optional inventory]
+ C --> D[Calculate PEN shopping estimate]
+ B --> E[Enter hypothetical percentage change]
+ E --> F[Calculate labeled PEN scenario]
+ G[Meal plan request] --> H[DATA_UNAVAILABLE until verified recipes INS nutrition and dated FX are configured]
 ```
 

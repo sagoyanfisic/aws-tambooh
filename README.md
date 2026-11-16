@@ -7,7 +7,7 @@ The application keeps source prices in PEN, preserves provenance, uses determini
 ## What is included
 
 - React + TypeScript + Vite + Tailwind frontend.
-- Python 3.12 Lambda API and deterministic meal-planning services.
+- Python 3.12 Lambda API with deterministic published-price, shopping-list and price-scenario calculations.
 - Claude Messages API integration with Secrets Manager and deterministic fallback.
 - MIDAGRI wholesale ingestion module under `src/`.
 - Step Functions Standard workflow with a Map state for four source families.
@@ -80,6 +80,15 @@ The API handler can be invoked locally through SAM or directly from Python:
 ```bash
 sam local invoke ApiFunction -e events/api-health.json
 ```
+
+The INS recipe/nutrition import contract can be checked before any catalog is published:
+
+```bash
+python scripts/validate_recipe_catalog.py reviewed-ins-catalog.json
+python scripts/validate_recipe_catalog.py reviewed-ins-catalog.json --output /tmp/validated-ins-catalog.json
+```
+
+No recipe/nutrition catalog is bundled. Validation checks schema and attribution, not the truth of imported nutrition values; review the official source and its reuse terms before loading data. See [Data sources](docs/data-sources.md).
 
 Claude is disabled by default. For local use only, export `ANTHROPIC_API_KEY` and `ENABLE_AI=true` into the process environment; `.env` is a private storage convenience and is not loaded automatically by Python. Never put the key in React or a `VITE_*` variable.
 
@@ -181,9 +190,9 @@ Step Functions JSON   valid
 SAM template          valid with sam validate --lint
 ```
 
-The operator confirmed a dev deployment in us-east-2, successful Step Functions execution ef7910e6-dd7f-4e4b-bd8d-f9815f293e74, and an API response with 18 wholesale records from the manually uploaded 2026-11-16 Mañanero PDF. Automatic source downloads remain incomplete: SISAP/SIEA connections timed out and the gob.pe search did not locate the requested report. That evidence does not prove geographic IP filtering. A real Mañanero PDF fixture now tests its two-row header; the other source layouts remain unverified. Production readiness is not claimed. The new frontend reads published API data and has an automated private-S3 publication path; its AWS publication and browser verification remain pending an operator deployment. See [Frontend](docs/frontend.md).
+The operator confirmed a dev deployment in us-east-2, successful Step Functions execution ef7910e6-dd7f-4e4b-bd8d-f9815f293e74, and an API response with 18 wholesale records from the manually uploaded 2026-11-16 Mañanero PDF. The operator also reports that the frontend is published at CloudFront. Automatic source downloads remain incomplete: SISAP/SIEA connections timed out and the gob.pe search did not locate the requested report. That evidence does not prove geographic IP filtering. A real Mañanero PDF fixture tests its two-row header; the other source layouts remain unverified. The shopping planner changes in this workspace have not yet been deployed. Production readiness is not claimed. See [Frontend](docs/frontend.md).
 
-The ingestion API reads active manifests and complete versioned S3 snapshots. Failed staging writes leave the last active publication visible. Source processing is serialized in the Map to respect shared-domain pacing. Production recipe planning requires verified product-to-recipe mappings; the API returns DATA_UNAVAILABLE rather than a zero-cost incomplete meal. Historical trend output is marked insufficient_history until a compatible history calculation service is implemented.
+The ingestion API reads active manifests and complete versioned S3 snapshots. Failed staging writes leave the last active publication visible. Source processing is serialized in the Map to respect shared-domain pacing. Meal planning currently validates requests but returns `DATA_UNAVAILABLE`: verified INS nutrition, a source-attributed recipe catalog, compatible prices and a dated FX reference are prerequisites. It does not return a hard-coded recipe or infer a USD budget comparison. Historical trend output is marked insufficient_history until a compatible history calculation service is implemented.
 
 ## Documentation
 

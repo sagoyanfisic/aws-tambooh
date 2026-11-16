@@ -4,7 +4,7 @@ The React/TypeScript/Vite frontend reads `GET /api/v1/prices`. It has no embedde
 
 Search ignores accents and case; the market selector preserves separation between markets. A failed refresh keeps the last successful in-memory response and its original dates. Failed initial loads, no published data and empty filtered results have explicit states. Requests have cancellation and a 12-second timeout. Prices are fetched on load and explicit refresh, not by polling.
 
-The household fields retain the illustrative four-person / USD 65 demonstration. They stay in browser memory and do not generate a plan, shopping list, currency conversion or unsupported financial total. Nutrition, meal planning, scenarios and Claude are not claimed as completed frontend features.
+The household panel retains the illustrative four-person / USD 65 demonstration without using it to estimate a PEN budget. The shopping planner sends selected product quantities and pantry inventory to `POST /api/v1/shopping-lists`. It displays an estimated PEN total only for products with published wholesale prices normalized per kg; the API deducts inventory and returns each quote's source and observation date. Live birds are excluded. The scenario simulator sends selected quotes, quantities and user-entered percentage changes to `POST /api/v1/price-scenarios`; results are explicitly hypothetical, in PEN, and not a forecast. Both tools use the source and market selected by the user. They do not produce a retail grocery total. Quantities and scenarios are not saved. Nutrition-backed menus, food reserves and Claude are not claimed as completed frontend features.
 
 ## Local development
 
@@ -32,7 +32,7 @@ npm test
 npm run build
 ```
 
-The frontend tests use Node's built-in runner and compiled TypeScript services. They mock fetch and check the deployed API response contract, date validation, missing values, PEN/kg vs PEN/liter labeling, filtering, API Gateway stage preservation, unsafe links and service failures. They require neither AWS nor Anthropic credentials.
+The frontend tests use Node's built-in runner and compiled TypeScript services. They mock fetch and check the deployed API response contract, date validation, missing values, PEN/kg vs PEN/liter labeling, filtering, API Gateway stage preservation, shopping and scenario request behavior, live-bird exclusion, unsafe links and service failures. They require neither AWS nor Anthropic credentials.
 
 CI also checks browser runtime dependencies with `npm audit --omit=dev --audit-level=high`. This requires registry access; an offline test/build does not establish vulnerability-audit results. Local browser preview was blocked by the execution environment (localhost binding denied and headless Chrome could not start), so desktop/mobile visual review and real browser CORS verification remain operator checks after deployment.
 

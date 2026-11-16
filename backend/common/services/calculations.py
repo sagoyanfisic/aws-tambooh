@@ -1,7 +1,12 @@
 from collections import defaultdict
 from collections.abc import Iterable
 
-from backend.common.models.domain import Ingredient, PriceScenarioRequest
+from backend.common.models.domain import (
+    Ingredient,
+    PriceRecord,
+    PriceScenarioRequest,
+    ShoppingListRequest,
+)
 
 PEN_PER_USD = 3.75
 
@@ -14,38 +19,125 @@ def recipe_cost(ingredients: Iterable[Ingredient]) -> float:
     return round(sum(i.quantity_kg * i.price_pen_per_kg for i in ingredients), 2)
 
 
-def consolidated_shopping(ingredients: Iterable[Ingredient], pantry_items: list[str]) -> list[dict]:
-    pantry = {item.strip().lower() for item in pantry_items}
-    grouped = defaultdict(lambda: {"quantity_kg": 0.0, "cost_pen": 0.0})
-    for item in ingredients:
-        if item.name.lower() in pantry:
-            continue
-        grouped[item.name]["quantity_kg"] += item.quantity_kg
-        grouped[item.name]["cost_pen"] += item.quantity_kg * item.price_pen_per_kg
-    return [
-        {
-            "ingredient": name,
-            "quantity_kg": round(v["quantity_kg"], 2),
-            "cost_pen": round(v["cost_pen"], 2),
-            "cost_usd": pen_to_usd(v["cost_pen"]),
-        }
-        for name, v in sorted(grouped.items())
-    ]
+def build_shopping_list(prices: list[PriceRecord], request: ShoppingListRequest) -> dict:
+    """Calculate quantities and PEN costs from published wholesale PEN/kg quotes."""
+    latest: dict[tuple[str, str, str], PriceRecord] = {}
+    for price in prices:
+        identity = (price.product_id, price.market, price.source_url)
+        previous = latest.get(identity)
+        if previous is None or price.observation_date > previous.observation_date:
+            latest[identity] = price
+
+    wanted: dict[tuple[str, str, str], float] = defaultdict(float)
+    for line in request.items:
+        wanted[(line.product_id, line.market, line.source_url)] += line.quantity_kg
+
+    inventory: dict[tuple[str, str], float] = defaultdict(float)
+    for line in request.inventory:
+        inventory[(line.product_id, line.market)] += line.quantity_kg
+
+    result = []
+    for quote_identity, needed in wanted.items():
+        product_market = quote_identity[:2]
+        price = latest.get(quote_identity)
+        if (
+            price is None
+            or price.normalized_value is None
+            or price.normalization_unit != "kg"
+            or price.price_type != "wholesale"
+            or "aves vivas" in price.market.casefold()
+        ):
+            raise ValueError(
+                f"No hay un precio mayorista normalizado por kg para {quote_identity[0]} "
+                f"en {quote_identity[1]} desde la fuente seleccionada."
+            )
+        in_pantry = inventory[product_market]
+        to_buy = max(0.0, needed - in_pantry)
+        result.append(
+            {
+                "product_id": price.product_id,
+                "product_name": price.product_name,
+                "market": price.market,
+                "observation_date": price.observation_date,
+                "source_institution": price.source_institution,
+                "source_url": price.source_url,
+                "quantity_needed_kg": round(needed, 3),
+                "quantity_in_pantry_kg": round(in_pantry, 3),
+                "quantity_to_buy_kg": round(to_buy, 3),
+                "price_pen_per_kg": price.normalized_value,
+                "estimated_cost_pen": round(to_buy * price.normalized_value, 2),
+                "currency": "PEN",
+                "price_type": "wholesale",
+                "quality_flags": price.quality_flags,
+            }
+        )
+
+    total = round(sum(line["estimated_cost_pen"] for line in result), 2)
+    return {
+        "items": result,
+        "total_pen": total,
+        "currency": "PEN",
+        "basis": "wholesale_reference",
+        "notice": (
+            "Estimación con precios mayoristas por kg; no representa precio minorista "
+            "ni incluye transporte, mermas o presentación comercial."
+        ),
+    }
 
 
-def simulate_scenario(items: list[dict], request: PriceScenarioRequest) -> dict:
+def simulate_scenario(prices: list[PriceRecord], request: PriceScenarioRequest) -> dict:
+    latest: dict[tuple[str, str, str], PriceRecord] = {}
+    for price in prices:
+        identity = (price.product_id, price.market, price.source_url)
+        previous = latest.get(identity)
+        if previous is None or price.observation_date > previous.observation_date:
+            latest[identity] = price
+
     projected = []
-    total = 0.0
-    for item in items:
-        change = request.changes_percent.get(item["product_id"], 0.0)
-        cost = round(item["cost_pen"] * (1 + change / 100), 2)
-        total += cost
-        projected.append({**item, "change_percent": change, "projected_cost_pen": cost})
+    for line in request.items:
+        price = latest.get((line.product_id, line.market, line.source_url))
+        if (
+            price is None
+            or price.normalized_value is None
+            or price.normalization_unit != "kg"
+            or price.price_type != "wholesale"
+            or "aves vivas" in price.market.casefold()
+        ):
+            raise ValueError(
+                f"No hay un precio mayorista normalizado por kg para {line.product_id} "
+                "en la fuente seleccionada."
+            )
+        base_cost = line.quantity_kg * price.normalized_value
+        simulated_price = price.normalized_value * (1 + line.change_percent / 100)
+        simulated_cost = line.quantity_kg * simulated_price
+        projected.append(
+            {
+                "product_id": price.product_id,
+                "product_name": price.product_name,
+                "market": price.market,
+                "source_institution": price.source_institution,
+                "source_url": price.source_url,
+                "observation_date": price.observation_date,
+                "quantity_kg": round(line.quantity_kg, 3),
+                "price_pen_per_kg": price.normalized_value,
+                "simulated_price_pen_per_kg": round(simulated_price, 4),
+                "base_cost_pen": round(base_cost, 2),
+                "simulated_cost_pen": round(simulated_cost, 2),
+                "difference_pen": round(simulated_cost - base_cost, 2),
+                "change_percent": line.change_percent,
+                "quality_flags": price.quality_flags,
+            }
+        )
+
+    total_base = round(sum(item["base_cost_pen"] for item in projected), 2)
+    total_simulated = round(sum(item["simulated_cost_pen"] for item in projected), 2)
     return {
         "is_simulation": True,
         "items": projected,
-        "total_pen": round(total, 2),
-        "total_usd": pen_to_usd(total),
-        "budget_usd": request.budget_usd,
-        "within_budget": pen_to_usd(total) <= request.budget_usd,
+        "base_total_pen": total_base,
+        "simulated_total_pen": total_simulated,
+        "difference_pen": round(total_simulated - total_base, 2),
+        "currency": "PEN",
+        "basis": "hypothetical_price_simulation",
+        "notice": "Escenario hipotético, no es pronóstico ni estimación validada.",
     }

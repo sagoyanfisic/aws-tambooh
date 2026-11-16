@@ -10,6 +10,7 @@ export interface Price {
   unit_original: string;
   original_value: number | null;
   normalized_value: number | null;
+  normalization_unit?: string | null;
   price_pen_per_l: number | null;
   quality_flags: string[];
 }

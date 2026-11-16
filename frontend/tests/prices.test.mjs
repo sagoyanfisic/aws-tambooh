@@ -12,6 +12,14 @@ import {
   formatDate,
   priceLabel,
 } from "../.test-build/services/presentation.js";
+import {
+  createShoppingList,
+  shoppingEligible,
+} from "../.test-build/services/shopping.js";
+import {
+  calculateScenario,
+  scenarioEligible,
+} from "../.test-build/services/scenarios.js";
 
 test("reports a malformed response as an understandable service error", async () => {
   const fake = mock.method(
@@ -184,6 +192,115 @@ test("request cancellation is preserved for the hook timeout and cleanup", async
     await assert.rejects(fetchPrices("https://api.test", controller.signal), {
       name: "AbortError",
     });
+  } finally {
+    fake.mock.restore();
+  }
+});
+
+test("shopping estimates only include wholesale products normalized per kilogram", () => {
+  assert.equal(shoppingEligible(item), false);
+  assert.equal(
+    shoppingEligible({ ...item, normalization_unit: "kg" }),
+    true,
+  );
+  assert.equal(shoppingEligible({ ...item, normalization_unit: "l" }), false);
+  assert.equal(
+    shoppingEligible({ ...item, price_type: "retail", normalization_unit: "kg" }),
+    false,
+  );
+  assert.equal(
+    shoppingEligible({
+      ...item,
+      market: "MERCADO MAYORISTA DE AVES VIVAS",
+      normalization_unit: "kg",
+    }),
+    false,
+  );
+});
+
+test("shopping request posts quantities and inventory without browser credentials", async () => {
+  const request = {
+    items: [
+      {
+        product_id: "papa-canchan",
+        market: "GMML",
+        source_url: "https://source.test/papa.pdf",
+        quantity_kg: 2,
+      },
+    ],
+    inventory: [{ product_id: "papa-canchan", market: "GMML", quantity_kg: 0.5 }],
+  };
+  const expected = {
+    items: [],
+    total_pen: 4.4,
+    currency: "PEN",
+    basis: "wholesale_reference",
+    notice: "Mayorista, no minorista.",
+  };
+  const fake = mock.method(globalThis, "fetch", async (url, options) => {
+    assert.equal(url, "https://api.test/dev/api/v1/shopping-lists");
+    assert.equal(options.method, "POST");
+    assert.equal(options.credentials, "omit");
+    assert.deepEqual(JSON.parse(options.body), request);
+    return new Response(JSON.stringify(expected), { status: 200 });
+  });
+  try {
+    assert.deepEqual(
+      await createShoppingList("https://api.test/dev", request),
+      expected,
+    );
+  } finally {
+    fake.mock.restore();
+  }
+});
+
+test("scenario eligibility excludes live-bird quotes and unnormalized units", () => {
+  assert.equal(scenarioEligible({ ...item, normalization_unit: "kg" }), true);
+  assert.equal(scenarioEligible({ ...item, normalization_unit: null }), false);
+  assert.equal(
+    scenarioEligible({
+      ...item,
+      market: "MERCADO MAYORISTA DE AVES VIVAS",
+      normalization_unit: "kg",
+    }),
+    false,
+  );
+});
+
+test("scenario request preserves stage, source, quantities, and simulation label", async () => {
+  const request = {
+    items: [
+      {
+        product_id: "papa-canchan",
+        market: "GMML",
+        source_url: "https://source.test/papa.pdf",
+        quantity_kg: 2,
+        change_percent: 15,
+      },
+    ],
+  };
+  const expected = {
+    is_simulation: true,
+    items: [],
+    base_total_pen: 5.86,
+    simulated_total_pen: 6.74,
+    difference_pen: 0.88,
+    currency: "PEN",
+    basis: "hypothetical_price_simulation",
+    notice: "Escenario hipotético.",
+  };
+  const fake = mock.method(globalThis, "fetch", async (url, options) => {
+    assert.equal(url, "https://api.test/dev/api/v1/price-scenarios");
+    assert.equal(options.method, "POST");
+    assert.equal(options.credentials, "omit");
+    assert.deepEqual(JSON.parse(options.body), request);
+    return new Response(JSON.stringify(expected), { status: 200 });
+  });
+  try {
+    assert.deepEqual(
+      await calculateScenario("https://api.test/dev", request),
+      expected,
+    );
   } finally {
     fake.mock.restore();
   }

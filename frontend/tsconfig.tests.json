@@ -8,6 +8,8 @@
   "include": [
     "src/types/prices.ts",
     "src/services/prices.ts",
-    "src/services/presentation.ts"
+    "src/services/presentation.ts",
+    "src/services/shopping.ts",
+    "src/services/scenarios.ts"
   ]
 }

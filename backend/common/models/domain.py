@@ -40,6 +40,31 @@ class MealPlanRequest(BaseModel):
     pantry_items: list[str] = []
 
 
+class ShoppingLineRequest(BaseModel):
+    product_id: str = Field(min_length=1, max_length=160)
+    market: str = Field(min_length=1, max_length=240)
+    source_url: str = Field(min_length=1, max_length=2048)
+    quantity_kg: float = Field(gt=0, le=1000)
+
+
+class InventoryLineRequest(BaseModel):
+    product_id: str = Field(min_length=1, max_length=160)
+    market: str = Field(min_length=1, max_length=240)
+    quantity_kg: float = Field(ge=0, le=1000)
+
+
+class ShoppingListRequest(BaseModel):
+    items: list[ShoppingLineRequest] = Field(min_length=1, max_length=100)
+    inventory: list[InventoryLineRequest] = Field(default_factory=list, max_length=100)
+
+
+class PriceScenarioLineRequest(BaseModel):
+    product_id: str = Field(min_length=1, max_length=160)
+    market: str = Field(min_length=1, max_length=240)
+    source_url: str = Field(min_length=1, max_length=2048)
+    quantity_kg: float = Field(gt=0, le=1000)
+    change_percent: float = Field(ge=-100, le=300)
+
+
 class PriceScenarioRequest(BaseModel):
-    changes_percent: dict[str, float] = Field(min_length=1)
-    budget_usd: float = Field(default=65, gt=0)
+    items: list[PriceScenarioLineRequest] = Field(min_length=1, max_length=100)
