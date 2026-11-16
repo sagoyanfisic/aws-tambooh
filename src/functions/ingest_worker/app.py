@@ -1,9 +1,10 @@
 """Validated ingestion tasks. AWS payloads contain S3 references, never PDF bytes."""
+
 import base64
 import hashlib
 import logging
 import os
-from datetime import date, datetime, timezone
+from datetime import UTC, date, datetime
 from typing import Literal
 from zoneinfo import ZoneInfo
 
@@ -16,6 +17,7 @@ from src.common.storage import TransientStorageError, active_dataset, snapshot_i
 
 try:
     from aws_lambda_powertools import Logger, Metrics
+
     logger = Logger(service="tambooh-ingestion")
     metrics = Metrics(namespace="TamBooh/Ingestion", service="ingestion")
 except ImportError:
@@ -47,12 +49,13 @@ class IngestEvent(BaseModel):
 
 
 def local_only():
-    return not any(os.getenv(key) for key in (
-        "AWS_LAMBDA_FUNCTION_NAME", "RAW_BUCKET", "PRICE_TABLE_NAME"))
+    return not any(
+        os.getenv(key) for key in ("AWS_LAMBDA_FUNCTION_NAME", "RAW_BUCKET", "PRICE_TABLE_NAME")
+    )
 
 
 def fetch(event: IngestEvent):
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     expected = event.expected_observation_date or now.astimezone(ZoneInfo("America/Lima")).date()
     last_modified = None
     if event.fixture_text is not None:
@@ -62,15 +65,21 @@ def fetch(event: IngestEvent):
         client = OfficialClient()
         try:
             status, headers, payload, url = resolve_and_download(
-                client, event.source_id, expected, event.source_url)
+                client, event.source_id, expected, event.source_url
+            )
             last_modified = headers.get("last-modified")
         finally:
             client.close()
     result = event.model_dump(mode="json", exclude_none=True)
     result.pop("fixture_text", None)
-    result.update(source_url=url, http_status=status, retrieved_at=now.isoformat(),
-                  expected_observation_date=expected.isoformat(), last_modified=last_modified,
-                  transport="http_insecure" if url.startswith("http://") else "https")
+    result.update(
+        source_url=url,
+        http_status=status,
+        retrieved_at=now.isoformat(),
+        expected_observation_date=expected.isoformat(),
+        last_modified=last_modified,
+        transport="http_insecure" if url.startswith("http://") else "https",
+    )
     if status == 404:
         return {**result, "status": "no_publication"}
     if len(payload) > MAX_BYTES:
@@ -88,14 +97,27 @@ def fetch(event: IngestEvent):
             result.pop("expected_observation_date", None)
         return result
     import boto3
+
     bucket = os.environ["RAW_BUCKET"]
     s3 = boto3.client("s3")
     from botocore.exceptions import ClientError
+
     try:
-        s3.put_object(Bucket=bucket, Key=key, Body=payload, ContentType="application/pdf",
-                      IfNoneMatch="*", Metadata={"url": url, "sha256": digest,
-                      "http-status": str(status), "retrieved-at": now.isoformat(),
-                      "transport": result["transport"], "last-modified": last_modified or ""})
+        s3.put_object(
+            Bucket=bucket,
+            Key=key,
+            Body=payload,
+            ContentType="application/pdf",
+            IfNoneMatch="*",
+            Metadata={
+                "url": url,
+                "sha256": digest,
+                "http-status": str(status),
+                "retrieved-at": now.isoformat(),
+                "transport": result["transport"],
+                "last-modified": last_modified or "",
+            },
+        )
     except ClientError as exc:
         if exc.response["Error"]["Code"] not in {"PreconditionFailed", "412"}:
             raise
@@ -110,10 +132,14 @@ def parse(event: IngestEvent):
     if event.status in {"no_publication", "unchanged"}:
         return {"source_id": event.source_id, "status": event.status, "rows": 0, "missing": 0}
     if local_only():
-        payload = base64.b64decode(event.body_b64, validate=True) if event.body_b64 else (
-            event.body or "").encode()
+        payload = (
+            base64.b64decode(event.body_b64, validate=True)
+            if event.body_b64
+            else (event.body or "").encode()
+        )
     else:
         import boto3
+
         prefix = f"raw/{event.source_id}/"
         if not event.raw_s3_key or not event.raw_s3_key.startswith(prefix):
             raise ValueError("Invalid source S3 reference")
@@ -124,9 +150,14 @@ def parse(event: IngestEvent):
     digest = hashlib.sha256(payload).hexdigest()
     if event.sha256 and digest != event.sha256:
         raise DatasetQualityError("S3 object hash differs from download reference")
-    kwargs = dict(source_id=event.source_id, market=event.market, source_url=event.source_url or "",
-                  institution=event.institution, raw_s3_key=event.raw_s3_key or "",
-                  retrieved_at=event.retrieved_at)
+    kwargs = {
+        "source_id": event.source_id,
+        "market": event.market,
+        "source_url": event.source_url or "",
+        "institution": event.institution,
+        "raw_s3_key": event.raw_s3_key or "",
+        "retrieved_at": event.retrieved_at,
+    }
     if payload.startswith(b"%PDF"):
         records = parse_pdf(payload, **kwargs, expected_date=event.expected_observation_date)
     elif local_only():
@@ -134,9 +165,14 @@ def parse(event: IngestEvent):
     else:
         raise DatasetQualityError("Stored object is not a PDF")
     result = store_records(records, sha256=digest)
-    response = {"source_id": event.source_id, "status": "ok", **result,
-                "retrieved_at": records[0].retrieved_at.isoformat(), "sha256": digest,
-                "parser_version": PARSER_VERSION}
+    response = {
+        "source_id": event.source_id,
+        "status": "ok",
+        **result,
+        "retrieved_at": records[0].retrieved_at.isoformat(),
+        "sha256": digest,
+        "parser_version": PARSER_VERSION,
+    }
     if local_only():
         response["records"] = [record.model_dump(mode="json") for record in records]
     return response
@@ -146,32 +182,52 @@ def lambda_handler(event, context):
     source = event.get("source_id", "unknown")
     try:
         request = IngestEvent.model_validate(event)
-        if not local_only() and any(value is not None for value in (
-                request.fixture_text, request.body, request.body_b64)):
+        if not local_only() and any(
+            value is not None for value in (request.fixture_text, request.body, request.body_b64)
+        ):
             raise ValueError("Inline inputs are supported only in the local runner")
         result = fetch(request) if request.action == "fetch" else parse(request)
         if metrics and request.action == "parse":
             metrics.add_dimension(name="Source", value=source)
             metrics.add_metric(name="RowsParsed", unit="Count", value=result["rows"])
             metrics.add_metric(name="RowsMissing", unit="Count", value=result["missing"])
-        logger.info("ingestion_task", extra={"source_id": source, "action": request.action,
-                                            "status": result["status"],
-                                            "request_id": getattr(context, "aws_request_id", None)})
+        logger.info(
+            "ingestion_task",
+            extra={
+                "source_id": source,
+                "action": request.action,
+                "status": result["status"],
+                "request_id": getattr(context, "aws_request_id", None),
+            },
+        )
         return result
     except Exception as exc:
-        logger.error("ingestion_failed", extra={"source_id": source,
-                                               "error_type": type(exc).__name__,
-                                               "request_id": getattr(context, "aws_request_id", None)})
+        logger.error(
+            "ingestion_failed",
+            extra={
+                "source_id": source,
+                "error_type": type(exc).__name__,
+                "request_id": getattr(context, "aws_request_id", None),
+            },
+        )
         if metrics:
             metrics.add_dimension(name="Source", value=source)
             metrics.add_metric(name="SourceFailed", unit="Count", value=1)
         from botocore.exceptions import ClientError, ConnectionClosedError, EndpointConnectionError
+
         if event.get("action") == "parse":
-            transient_codes = {"ThrottlingException", "ProvisionedThroughputExceededException",
-                               "RequestLimitExceeded", "InternalServerError", "SlowDown",
-                               "ServiceUnavailable", "InternalError"}
-            if ((isinstance(exc, ClientError) and exc.response["Error"]["Code"] in transient_codes)
-                    or isinstance(exc, (EndpointConnectionError, ConnectionClosedError))):
+            transient_codes = {
+                "ThrottlingException",
+                "ProvisionedThroughputExceededException",
+                "RequestLimitExceeded",
+                "InternalServerError",
+                "SlowDown",
+                "ServiceUnavailable",
+                "InternalError",
+            }
+            if (
+                isinstance(exc, ClientError) and exc.response["Error"]["Code"] in transient_codes
+            ) or isinstance(exc, (EndpointConnectionError, ConnectionClosedError)):
                 raise TransientStorageError("Retryable AWS storage failure") from exc
         raise
     finally:

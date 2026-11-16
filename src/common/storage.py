@@ -1,11 +1,12 @@
 """Immutable dataset snapshots followed by one atomic active-pointer update."""
+
 import csv
 import hashlib
 import io
 import json
 import os
+from datetime import UTC, datetime
 from decimal import Decimal
-from datetime import datetime, timezone
 
 from .models import PriceRecord, dynamo_keys
 from .parsers import PARSER_VERSION
@@ -24,8 +25,9 @@ def snapshot_id(sha256):
 
 
 def active_dataset(table, source_id):
-    return table.get_item(Key={"pk": "DATASETS", "sk": f"SOURCE#{source_id}"},
-                          ConsistentRead=True).get("Item")
+    return table.get_item(
+        Key={"pk": "DATASETS", "sk": f"SOURCE#{source_id}"}, ConsistentRead=True
+    ).get("Item")
 
 
 def store_records(records: list[PriceRecord], dynamodb=None, s3=None, sha256=None) -> dict:
@@ -44,6 +46,7 @@ def store_records(records: list[PriceRecord], dynamodb=None, s3=None, sha256=Non
     if not table_name or not bucket:
         raise ValueError("Both PRICE_TABLE_NAME and RAW_BUCKET are required for publication")
     import boto3
+
     table = (dynamodb or boto3.resource("dynamodb")).Table(table_name)
     s3 = s3 or boto3.client("s3")
     if not sha256:
@@ -53,12 +56,17 @@ def store_records(records: list[PriceRecord], dynamodb=None, s3=None, sha256=Non
     if previous and previous["dataset_id"] == version:
         return {**result, "publication": "unchanged", "dataset_id": version}
     retrieved = records[0].retrieved_at.isoformat()
-    historical = previous and (day < previous["observation_date"] or
-                              (day == previous["observation_date"] and retrieved < previous["retrieved_at"]))
+    historical = previous and (
+        day < previous["observation_date"]
+        or (day == previous["observation_date"] and retrieved < previous["retrieved_at"])
+    )
     # Historical versions have distinct keys. Failed writes never change the active pointer.
     for record in records:
-        item = {**dynamo_keys(record, version), **record.model_dump(mode="json"),
-                "dataset_id": version}
+        item = {
+            **dynamo_keys(record, version),
+            **record.model_dump(mode="json"),
+            "dataset_id": version,
+        }
         table.put_item(Item=decimal_item(item))
     prefix = f"curated/prices/source={source}/date={day}/version={version}"
     values = [record.model_dump(mode="json") for record in records]
@@ -66,23 +74,41 @@ def store_records(records: list[PriceRecord], dynamodb=None, s3=None, sha256=Non
     writer = csv.DictWriter(output, fieldnames=list(values[0]))
     writer.writeheader()
     writer.writerows(values)
-    s3.put_object(Bucket=bucket, Key=f"{prefix}/part.csv", Body=output.getvalue().encode(),
-                  ContentType="text/csv")
+    s3.put_object(
+        Bucket=bucket,
+        Key=f"{prefix}/part.csv",
+        Body=output.getvalue().encode(),
+        ContentType="text/csv",
+    )
     snapshot_key = f"{prefix}/records.json"
-    s3.put_object(Bucket=bucket, Key=snapshot_key, Body=json.dumps(values).encode(),
-                  ContentType="application/json")
+    s3.put_object(
+        Bucket=bucket,
+        Key=snapshot_key,
+        Body=json.dumps(values).encode(),
+        ContentType="application/json",
+    )
     if historical:
         return {**result, "publication": "historical_only", "dataset_id": version}
-    manifest = {"pk": "DATASETS", "sk": f"SOURCE#{source}", "source_id": source,
-                "dataset_id": version, "sha256": sha256, "parser_version": PARSER_VERSION,
-                "observation_date": day, "retrieved_at": retrieved,
-                "published_at": datetime.now(timezone.utc).isoformat(),
-                "snapshot_key": snapshot_key, **result}
+    manifest = {
+        "pk": "DATASETS",
+        "sk": f"SOURCE#{source}",
+        "source_id": source,
+        "dataset_id": version,
+        "sha256": sha256,
+        "parser_version": PARSER_VERSION,
+        "observation_date": day,
+        "retrieved_at": retrieved,
+        "published_at": datetime.now(UTC).isoformat(),
+        "snapshot_key": snapshot_key,
+        **result,
+    }
     # Compare-and-swap: another execution cannot silently replace a newer publication.
     kwargs = {"ConditionExpression": "attribute_not_exists(dataset_id)"}
     if previous:
-        kwargs = {"ConditionExpression": "dataset_id = :previous",
-                  "ExpressionAttributeValues": {":previous": previous["dataset_id"]}}
+        kwargs = {
+            "ConditionExpression": "dataset_id = :previous",
+            "ExpressionAttributeValues": {":previous": previous["dataset_id"]},
+        }
     table.put_item(Item=manifest, **kwargs)
     return {**result, "publication": "published", "dataset_id": version}
 
@@ -90,6 +116,7 @@ def store_records(records: list[PriceRecord], dynamodb=None, s3=None, sha256=Non
 def load_published(table, s3, bucket):
     """Strongly consistent pointers + complete S3 snapshots; no scan of staged rows."""
     from boto3.dynamodb.conditions import Key
+
     manifests = []
     kwargs = {"KeyConditionExpression": Key("pk").eq("DATASETS"), "ConsistentRead": True}
     while True:

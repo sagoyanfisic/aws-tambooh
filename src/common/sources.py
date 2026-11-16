@@ -1,4 +1,5 @@
 """Bounded official-file discovery with TLS checks, robots and domain pacing."""
+
 import time
 from datetime import date
 from html.parser import HTMLParser
@@ -13,8 +14,20 @@ SOURCE_URLS = {
     "productores": "https://www.gob.pe/institucion/midagri/colecciones/18-reporte-de-ingreso-y-precios-en-el-mercado-mayorista-de-productores",
 }
 ALLOWED_HOSTS = {"sistemas.midagri.gob.pe", "siea.midagri.gob.pe", "www.gob.pe", "cdn.www.gob.pe"}
-MONTH_NAMES = ["enero", "febrero", "marzo", "abril", "mayo", "junio", "julio",
-               "agosto", "septiembre", "octubre", "noviembre", "diciembre"]
+MONTH_NAMES = [
+    "enero",
+    "febrero",
+    "marzo",
+    "abril",
+    "mayo",
+    "junio",
+    "julio",
+    "agosto",
+    "septiembre",
+    "octubre",
+    "noviembre",
+    "diciembre",
+]
 MAX_BYTES = 12 * 1024 * 1024
 USER_AGENT = "TamBooh-ingest/0.2 (+https://github.com/sagoyanfisic/aws-tambooh)"
 
@@ -39,8 +52,12 @@ class Links(HTMLParser):
 
 class OfficialClient:
     def __init__(self):
-        self.client = httpx.Client(timeout=httpx.Timeout(10, connect=5), follow_redirects=False,
-                                   headers={"User-Agent": USER_AGENT}, verify=True)
+        self.client = httpx.Client(
+            timeout=httpx.Timeout(10, connect=5),
+            follow_redirects=False,
+            headers={"User-Agent": USER_AGENT},
+            verify=True,
+        )
         self.last = {}
         self.robots = {}
         self.deadline = time.monotonic() + 110
@@ -73,8 +90,10 @@ class OfficialClient:
                     return response.status_code, dict(response.headers), b"".join(chunks)
             except (httpx.TransportError, TransientSourceError) as exc:
                 if attempt == 2:
-                    raise TransientSourceError("Official source unavailable after 3 attempts") from exc
-                time.sleep(2 ** attempt)
+                    raise TransientSourceError(
+                        "Official source unavailable after 3 attempts"
+                    ) from exc
+                time.sleep(2**attempt)
 
     def get(self, url, redirects=0):
         host = urlsplit(url).hostname
@@ -101,18 +120,35 @@ class OfficialClient:
 
 
 def date_matches(url, day):
-    return any(token in url.lower() for token in (
-        day.strftime("%d-%m-%Y"), day.strftime("%d_%m_%Y"), day.isoformat()))
+    return any(
+        token in url.lower()
+        for token in (day.strftime("%d-%m-%Y"), day.strftime("%d_%m_%Y"), day.isoformat())
+    )
 
 
 def resolve_and_download(client, source_id, day: date, source_url=None):
     if source_id == "gmml_ingreso" and (not source_url or source_url.endswith("/mml/")):
-        months = ["ene", "feb", "mar", "abr", "may", "jun", "jul", "ago", "set", "oct", "nov", "dic"]
+        months = [
+            "ene",
+            "feb",
+            "mar",
+            "abr",
+            "may",
+            "jun",
+            "jul",
+            "ago",
+            "set",
+            "oct",
+            "nov",
+            "dic",
+        ]
         candidates = [months[day.month - 1]] + (["sep"] if day.month == 9 else [])
         result = None
         for month in candidates:
-            url = (f"https://siea.midagri.gob.pe/files/datos_estadisticas/diarias/mml/"
-                   f"{day:%Y/%m}/sisap-ingreso-gmml-{day:%d}{month}{day:%y}.pdf")
+            url = (
+                f"https://siea.midagri.gob.pe/files/datos_estadisticas/diarias/mml/"
+                f"{day:%Y/%m}/sisap-ingreso-gmml-{day:%d}{month}{day:%y}.pdf"
+            )
             result = client.get(url)
             if result[0] == 200:
                 return result
@@ -139,11 +175,17 @@ def resolve_and_download(client, source_id, day: date, source_url=None):
                     return client.get(link)
             if depth == 0:
                 for link in absolute:
-                    if ("/informes-publicaciones/" in link and str(day.year) in link
-                            and (MONTH_NAMES[day.month - 1] in link.lower()
-                                 or (day.month == 9 and "setiembre" in link.lower())
-                                 or date_matches(link, day))
-                            and urlsplit(link).hostname == "www.gob.pe" and link not in visited):
+                    if (
+                        "/informes-publicaciones/" in link
+                        and str(day.year) in link
+                        and (
+                            MONTH_NAMES[day.month - 1] in link.lower()
+                            or (day.month == 9 and "setiembre" in link.lower())
+                            or date_matches(link, day)
+                        )
+                        and urlsplit(link).hostname == "www.gob.pe"
+                        and link not in visited
+                    ):
                         visited.add(link)
                         next_pages.append(client.get(link))
                         if len(next_pages) >= 2:

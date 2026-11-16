@@ -1,9 +1,9 @@
 """Header-driven extraction. Unknown layouts fail closed instead of guessing columns."""
+
 import io
 import math
-import re
 import unicodedata
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from .dates import parse_spanish_date
 from .models import PriceRecord, dynamo_keys
@@ -61,8 +61,9 @@ def column_name(value):
     return None
 
 
-def parse_rows(rows, observed, source_id, market, source_url, institution, raw_s3_key,
-               retrieved_at=None):
+def parse_rows(
+    rows, observed, source_id, market, source_url, institution, raw_s3_key, retrieved_at=None
+):
     columns = None
     records = []
     seen = set()
@@ -98,18 +99,29 @@ def parse_rows(rows, observed, source_id, market, source_url, institution, raw_s
         if price is not None and avg and abs(price / avg - 1) > 3:
             flags.append("outlier")
         record = PriceRecord(
-            observation_date=observed, retrieved_at=retrieved_at or datetime.now(timezone.utc),
-            source_id=source_id, source_url=source_url, institution=institution,
+            observation_date=observed,
+            retrieved_at=retrieved_at or datetime.now(UTC),
+            source_id=source_id,
+            source_url=source_url,
+            institution=institution,
             transport="http_insecure" if source_url.startswith("http://") else "https",
-            market=item.get("market") or market, product=item["product"],
-            category=item.get("category"), variety_or_brand=item.get("variety_or_brand"),
-            unit_original=unit_text, unit_qty_kg=unit.get("unit_qty_kg"),
-            unit_qty_l=unit.get("unit_qty_l"), price_pen_per_unit=price,
+            market=item.get("market") or market,
+            product=item["product"],
+            category=item.get("category"),
+            variety_or_brand=item.get("variety_or_brand"),
+            unit_original=unit_text,
+            unit_qty_kg=unit.get("unit_qty_kg"),
+            unit_qty_l=unit.get("unit_qty_l"),
+            price_pen_per_unit=price,
             price_pen_per_kg=normalized_price(price, unit.get("unit_qty_kg")),
             price_pen_per_l=normalized_price(price, unit.get("unit_qty_l")),
-            price_prev_day=number(item.get("price_prev_day")), avg_7d=avg,
-            avg_prev_month=number(item.get("avg_prev_month")), volume_t=number(item.get("volume_t")),
-            is_missing=price is None, quality_flags=flags, raw_s3_key=raw_s3_key,
+            price_prev_day=number(item.get("price_prev_day")),
+            avg_7d=avg,
+            avg_prev_month=number(item.get("avg_prev_month")),
+            volume_t=number(item.get("volume_t")),
+            is_missing=price is None,
+            quality_flags=flags,
+            raw_s3_key=raw_s3_key,
             parser_version=PARSER_VERSION,
         )
         key = tuple(dynamo_keys(record).values())
@@ -122,18 +134,29 @@ def parse_rows(rows, observed, source_id, market, source_url, institution, raw_s
     return records
 
 
-def parse_delimited(text, source_id, market, source_url, institution, raw_s3_key,
-                    retrieved_at=None):
+def parse_delimited(
+    text, source_id, market, source_url, institution, raw_s3_key, retrieved_at=None
+):
     """Local extracted-text fixtures only; production PDF extraction uses table cells."""
     observed = parse_spanish_date(text)
     rows = [line.split("|") for line in text.splitlines() if "|" in line]
-    return parse_rows(rows, observed, source_id, market, source_url, institution,
-                      raw_s3_key, retrieved_at)
+    return parse_rows(
+        rows, observed, source_id, market, source_url, institution, raw_s3_key, retrieved_at
+    )
 
 
-def parse_pdf(payload, source_id, market, source_url, institution, raw_s3_key,
-              retrieved_at=None, expected_date=None):
+def parse_pdf(
+    payload,
+    source_id,
+    market,
+    source_url,
+    institution,
+    raw_s3_key,
+    retrieved_at=None,
+    expected_date=None,
+):
     import pdfplumber
+
     if not payload.startswith(b"%PDF"):
         raise DatasetQualityError("Response is not a PDF")
     with pdfplumber.open(io.BytesIO(payload)) as pdf:
@@ -142,12 +165,16 @@ def parse_pdf(payload, source_id, market, source_url, institution, raw_s3_key,
         text = "\n".join(page.extract_text() or "" for page in pdf.pages)
         observed = parse_spanish_date(text)
         if expected_date is not None and observed != expected_date:
-            raise DatasetQualityError(f"Report date {observed} differs from expected {expected_date}")
+            raise DatasetQualityError(
+                f"Report date {observed} differs from expected {expected_date}"
+            )
         rows = []
         for page in pdf.pages:
-            tables = page.extract_tables() or page.extract_tables({
-                "vertical_strategy": "text", "horizontal_strategy": "text"})
+            tables = page.extract_tables() or page.extract_tables(
+                {"vertical_strategy": "text", "horizontal_strategy": "text"}
+            )
             for table in tables:
                 rows.extend(table)
-    return parse_rows(rows, observed, source_id, market, source_url, institution,
-                      raw_s3_key, retrieved_at)
+    return parse_rows(
+        rows, observed, source_id, market, source_url, institution, raw_s3_key, retrieved_at
+    )

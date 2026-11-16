@@ -1,6 +1,7 @@
 """Only convert package units with an explicit mass/volume equivalence."""
+
 import re
-from decimal import Decimal, ROUND_HALF_UP
+from decimal import ROUND_HALF_UP, Decimal
 
 
 def parse_unit(text: str) -> dict:
@@ -28,8 +29,11 @@ def parse_unit(text: str) -> dict:
 def normalized_price(price, quantity):
     if price is None or not quantity:
         return None
-    return float((Decimal(str(price)) / Decimal(str(quantity))).quantize(
-        Decimal("0.0001"), rounding=ROUND_HALF_UP))
+    return float(
+        (Decimal(str(price)) / Decimal(str(quantity))).quantize(
+            Decimal("0.0001"), rounding=ROUND_HALF_UP
+        )
+    )
 
 
 def price_per_kg(price, unit):
