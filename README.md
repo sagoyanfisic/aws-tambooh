@@ -134,6 +134,8 @@ See [docs/price-ingestion.md](docs/price-ingestion.md) for source limitations, S
 
 The configured target is account `786638967830`, region `us-east-2` (Ohio). Create the private artifact bucket `tambooh-dev-artifacts-786638967830` and the deployment roles before running the workflow. Exact prerequisites and GitHub environment variables are in [Deployment](docs/deployment.md).
 
+To create or repair the GitHub OIDC access in that account, follow [Access bootstrap](docs/bootstrap-access.md). It previews the plan offline and requires an explicit AWS profile or the target account's CloudShell when applying; it never uses your local default profile.
+
 For optional Claude, create the Anthropic secret outside SAM in us-east-2. Ingestion can deploy with AI disabled and no secret. Do not pass the API key as a CloudFormation parameter:
 
 ```bash

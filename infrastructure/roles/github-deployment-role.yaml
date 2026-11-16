@@ -1,7 +1,60 @@
-Version: '2012-10-17'
-Statement:
-  - Effect: Allow
-    Action: [cloudformation:*, lambda:*, apigateway:*, dynamodb:*, s3:*, states:*, events:*, iam:PassRole, cloudfront:*]
-    Resource: '*'
-# Narrow Resource ARNs further in the target account after stack creation.
-
+# Generated permission reference for account 786638967830, region us-east-2.
+# Authoritative bootstrap definitions: infrastructure/bootstrap/template.json.
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Action": [
+        "s3:GetBucketLocation",
+        "s3:ListBucket"
+      ],
+      "Resource": "arn:aws:s3:::tambooh-dev-artifacts-786638967830"
+    },
+    {
+      "Effect": "Allow",
+      "Action": [
+        "s3:GetObject",
+        "s3:PutObject"
+      ],
+      "Resource": "arn:aws:s3:::tambooh-dev-artifacts-786638967830/*"
+    },
+    {
+      "Effect": "Allow",
+      "Action": [
+        "cloudformation:CreateChangeSet",
+        "cloudformation:DescribeChangeSet",
+        "cloudformation:ExecuteChangeSet",
+        "cloudformation:DeleteChangeSet",
+        "cloudformation:DescribeStacks",
+        "cloudformation:DescribeStackEvents",
+        "cloudformation:DescribeStackResource",
+        "cloudformation:ListStackResources",
+        "cloudformation:ListChangeSets",
+        "cloudformation:GetTemplate"
+      ],
+      "Resource": [
+        "arn:aws:cloudformation:us-east-2:786638967830:stack/tambooh-dev/*",
+        "arn:aws:cloudformation:us-east-2:786638967830:changeSet/samcli-deploy*/*"
+      ]
+    },
+    {
+      "Effect": "Allow",
+      "Action": [
+        "cloudformation:GetTemplateSummary",
+        "cloudformation:ValidateTemplate"
+      ],
+      "Resource": "*"
+    },
+    {
+      "Effect": "Allow",
+      "Action": "iam:PassRole",
+      "Resource": "arn:aws:iam::786638967830:role/tambooh-dev-cloudformation",
+      "Condition": {
+        "StringEquals": {
+          "iam:PassedToService": "cloudformation.amazonaws.com"
+        }
+      }
+    }
+  ]
+}
