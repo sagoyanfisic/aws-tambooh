@@ -1,1 +1,196 @@
-{"Comment":"TamBooh MIDAGRI wholesale price ingestion","StartAt":"IngestSources","States":{"IngestSources":{"Type":"Map","ItemsPath":"$.sources","MaxConcurrency":4,"Parameters":{"source_id.$":"$$.Map.Item.Value.source_id","source_url.$":"$$.Map.Item.Value.source_url","market.$":"$$.Map.Item.Value.market","institution.$":"$$.Map.Item.Value.institution"},"Iterator":{"StartAt":"Fetch","States":{"Fetch":{"Type":"Task","Resource":"${PriceWorkerArn}","Parameters":{"action":"fetch","source_id.$":"$.source_id","source_url.$":"$.source_url"},"Retry":[{"ErrorEquals":["States.Timeout","Lambda.ServiceException","Lambda.TooManyRequestsException"],"IntervalSeconds":3,"MaxAttempts":3,"BackoffRate":2}],"Catch":[{"ErrorEquals":["States.ALL"],"ResultPath":"$.source_error","Next":"SourceFailed"}],"Next":"Parse"},"Parse":{"Type":"Task","Resource":"${PriceWorkerArn}","Parameters":{"action":"parse","source_id.$":"$.source_id","source_url.$":"$.source_url","market.$":"$.market","institution.$":"$.institution","retrieved_at.$":"$.retrieved_at","raw_s3_key.$":"$.raw_s3_key"},"Retry":[{"ErrorEquals":["States.Timeout","Lambda.ServiceException"],"IntervalSeconds":3,"MaxAttempts":3,"BackoffRate":2}],"Catch":[{"ErrorEquals":["States.ALL"],"ResultPath":"$.source_error","Next":"SourceFailed"}],"Next":"SourceOk"},"SourceOk":{"Type":"Pass","Parameters":{"source_id.$":"$.source_id","status.$":"$.status","rows.$":"$.rows","missing.$":"$.missing"},"End":true},"SourceFailed":{"Type":"Pass","Parameters":{"source_id.$":"$.source_id","status":"failed","error.$":"$.source_error"},"End":true}}},"ResultPath":"$.source_results","Next":"Report"},"Report":{"Type":"Task","Resource":"${ReportFunctionArn}","Parameters":{"sources.$":"$.source_results"},"Retry":[{"ErrorEquals":["Lambda.ServiceException","States.Timeout"],"IntervalSeconds":2,"MaxAttempts":3,"BackoffRate":2}],"Catch":[{"ErrorEquals":["States.ALL"],"Next":"IngestionFailed"}],"Next":"IngestionSucceeded"},"IngestionSucceeded":{"Type":"Succeed"},"IngestionFailed":{"Type":"Fail","Error":"TamBoohIngestionFailed","Cause":"Report step failed"}}}
+{
+  "Comment": "Reference-only MIDAGRI ingestion with isolated source failures",
+  "TimeoutSeconds": 1800,
+  "StartAt": "IngestSources",
+  "States": {
+    "IngestSources": {
+      "Type": "Map",
+      "ItemsPath": "$.sources",
+      "MaxConcurrency": 1,
+      "Parameters": {
+        "action": "fetch",
+        "source_id.$": "$$.Map.Item.Value.source_id",
+        "source_url.$": "$$.Map.Item.Value.source_url",
+        "market.$": "$$.Map.Item.Value.market",
+        "institution.$": "$$.Map.Item.Value.institution"
+      },
+      "Iterator": {
+        "StartAt": "PaceDomain",
+        "States": {
+          "PaceDomain": {
+            "Type": "Wait",
+            "Seconds": 3,
+            "Next": "Fetch"
+          },
+          "Fetch": {
+            "Type": "Task",
+            "Resource": "${PriceWorkerArn}",
+            "TimeoutSeconds": 150,
+            "Retry": [
+              {
+                "ErrorEquals": [
+                  "Lambda.ServiceException",
+                  "Lambda.AWSLambdaException",
+                  "Lambda.SdkClientException",
+                  "Lambda.TooManyRequestsException"
+                ],
+                "IntervalSeconds": 3,
+                "MaxAttempts": 3,
+                "BackoffRate": 2
+              }
+            ],
+            "Catch": [
+              {
+                "ErrorEquals": [
+                  "States.ALL"
+                ],
+                "ResultPath": "$.error",
+                "Next": "FetchFailed"
+              }
+            ],
+            "ResultPath": "$.download",
+            "Next": "Downloaded"
+          },
+          "Downloaded": {
+            "Type": "Choice",
+            "Choices": [
+              {
+                "Variable": "$.download.status",
+                "StringEquals": "no_publication",
+                "Next": "SourceSkipped"
+              },
+              {
+                "Variable": "$.download.status",
+                "StringEquals": "unchanged",
+                "Next": "SourceSkipped"
+              }
+            ],
+            "Default": "Parse"
+          },
+          "Parse": {
+            "Type": "Task",
+            "Resource": "${PriceWorkerArn}",
+            "TimeoutSeconds": 150,
+            "Retry": [
+                {
+                  "ErrorEquals": ["TransientStorageError"],
+                  "IntervalSeconds": 3,
+                  "MaxAttempts": 3,
+                  "BackoffRate": 2
+                },
+              {
+                "ErrorEquals": [
+                  "Lambda.ServiceException",
+                  "Lambda.AWSLambdaException",
+                  "Lambda.SdkClientException",
+                  "Lambda.TooManyRequestsException"
+                ],
+                "IntervalSeconds": 3,
+                "MaxAttempts": 3,
+                "BackoffRate": 2
+              }
+            ],
+            "Catch": [
+              {
+                "ErrorEquals": [
+                  "States.ALL"
+                ],
+                "ResultPath": "$.error",
+                "Next": "ParseFailed"
+              }
+            ],
+            "Parameters": {
+              "action": "parse",
+              "source_id.$": "$.source_id",
+              "source_url.$": "$.download.source_url",
+              "market.$": "$.market",
+              "institution.$": "$.institution",
+              "retrieved_at.$": "$.download.retrieved_at",
+              "raw_s3_key.$": "$.download.raw_s3_key",
+              "sha256.$": "$.download.sha256",
+              "expected_observation_date.$": "$.download.expected_observation_date"
+            },
+            "Next": "SourceOk"
+          },
+          "SourceOk": {
+            "Type": "Pass",
+            "End": true
+          },
+          "SourceSkipped": {
+            "Type": "Pass",
+            "Parameters": {
+              "source_id.$": "$.source_id",
+              "status.$": "$.download.status",
+              "rows": 0,
+              "missing": 0
+            },
+            "End": true
+          },
+          "FetchFailed": {
+            "Type": "Pass",
+            "Parameters": {
+              "source_id.$": "$.source_id",
+              "status": "failed",
+              "stage": "fetch",
+              "error.$": "$.error"
+            },
+            "End": true
+          },
+          "ParseFailed": {
+            "Type": "Pass",
+            "Parameters": {
+              "source_id.$": "$.source_id",
+              "status": "failed",
+              "stage": "parse",
+              "error.$": "$.error"
+            },
+            "End": true
+          }
+        }
+      },
+      "ResultPath": "$.source_results",
+      "Next": "Report"
+    },
+    "Report": {
+      "Type": "Task",
+      "Resource": "${ReportFunctionArn}",
+      "Parameters": {
+        "sources.$": "$.source_results"
+      },
+      "TimeoutSeconds": 20,
+      "Retry": [
+        {
+          "ErrorEquals": [
+            "Lambda.ServiceException",
+            "Lambda.AWSLambdaException",
+            "Lambda.SdkClientException",
+            "Lambda.TooManyRequestsException"
+          ],
+          "IntervalSeconds": 3,
+          "MaxAttempts": 3,
+          "BackoffRate": 2
+        }
+      ],
+      "Next": "RunStatus"
+    },
+    "RunStatus": {
+      "Type": "Choice",
+      "Choices": [
+        {
+          "Variable": "$.status",
+          "StringEquals": "failed",
+          "Next": "IngestionFailed"
+        }
+      ],
+      "Default": "IngestionSucceeded"
+    },
+    "IngestionSucceeded": {
+      "Type": "Succeed"
+    },
+    "IngestionFailed": {
+      "Type": "Fail",
+      "Error": "AllSourcesFailed",
+      "Cause": "See source_results and CloudWatch for individual stage failures"
+    }
+  }
+}

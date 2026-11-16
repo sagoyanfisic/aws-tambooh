@@ -9,3 +9,5 @@
 
 Production uses a separate secret, GitHub environment, stack, and approval gate. The secret is rotated with `aws secretsmanager put-secret-value`; the Lambda cache refreshes on a new execution environment.
 
+Production data mode is DynamoDB and is the default. `TAMBOOH_DATA_MODE=demo` is intended only for local demonstrations; it loads `data/samples/prices.json`, whose records are explicitly marked `DEMO_ONLY` and must never be enabled in a deployed environment.
+

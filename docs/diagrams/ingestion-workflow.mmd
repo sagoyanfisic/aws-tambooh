@@ -1,16 +1,21 @@
-```mermaid
 flowchart TD
- A[EventBridge / manual execution] --> B[Step Functions Standard]
- B --> C[FetchAgriculturalPrices]
- C --> D[ValidateDataset]
- D --> E{Valid?}
- E -->|Yes| F[StoreRawDataset - S3]
- F --> G[NormalizeAgriculturalPrices]
- G --> H[PersistNormalizedPrices - DynamoDB]
- H --> I[CalculatePriceTrends]
- I --> J[PublishDataset]
- J --> K[Success]
- E -->|No| L[HandleFailure]
- L --> M[Failed; preserve last dataset]
-```
-
+    A[Scheduler or manual execution] --> B[IngestSources Map]
+    B --> W[PaceDomain]
+    W --> C[Fetch PDF and store raw S3]
+    C --> D{Downloaded status}
+    D -->|404 or unchanged| S[SourceSkipped]
+    D -->|downloaded| P[Parse S3 object and validate]
+    P --> H[Versioned DynamoDB rows]
+    H --> J[CSV and JSON snapshots in S3]
+    J --> K[Conditional active manifest update]
+    C -->|error| F[FetchFailed]
+    P -->|error| G[ParseFailed]
+    H -->|error| G
+    J -->|error| G
+    K --> R[Report]
+    S --> R
+    F --> R
+    G --> R
+    R --> E{Any source completed}
+    E -->|yes| OK[Success or partial_failure summary]
+    E -->|no| FAIL[IngestionFailed]

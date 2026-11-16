@@ -6,9 +6,11 @@ React/Vite is hosted from S3 behind CloudFront. API Gateway HTTP API routes to P
 flowchart LR
  U[Household] --> CF[CloudFront] --> FE[Private S3 frontend]
  U --> API[API Gateway HTTP API] --> L[Lambda API] --> D[(DynamoDB prices)]
- L --> B[Optional Claude API Lambda]
+ API --> B[Optional Claude API Lambda]
+ L --> SNAP[(S3 published JSON snapshots)]
  E[EventBridge schedule] --> SF[Step Functions] --> I[Ingestion Lambda]
- I --> S[(S3 raw datasets)]
+ I --> S[(S3 raw and versioned curated datasets)]
+ I --> D
 ```
 
 ```mermaid
