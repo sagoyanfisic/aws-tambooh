@@ -1,0 +1,7 @@
+# Runtime only; dev tools and frontend files are excluded from Lambda artifacts.
+anthropic>=0.45,<1
+boto3>=1.36,<2
+httpx>=0.27,<1
+pdfplumber>=0.11,<1
+pydantic>=2.7,<3
+aws-lambda-powertools>=3,<4

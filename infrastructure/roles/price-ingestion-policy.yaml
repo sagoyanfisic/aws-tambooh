@@ -1,9 +1,10 @@
+# Reference only; executable IAM policies are integrated in template.yaml.
 Version: '2012-10-17'
 Statement:
   - Effect: Allow
     Action: [s3:GetObject, s3:PutObject]
-    Resource: arn:aws:s3:::<RAW_BUCKET>/raw/*
+    Resource: [arn:aws:s3:::<RAW_BUCKET>/raw/*, arn:aws:s3:::<RAW_BUCKET>/curated/prices/*]
   - Effect: Allow
-    Action: [dynamodb:PutItem, dynamodb:UpdateItem, dynamodb:GetItem, dynamodb:Query]
+    Action: [dynamodb:PutItem, dynamodb:GetItem]
     Resource: arn:aws:dynamodb:<REGION>:<ACCOUNT_ID>:table/tambooh-<ENVIRONMENT>-prices
 

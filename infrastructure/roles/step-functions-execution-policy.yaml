@@ -1,6 +1,9 @@
+# Reference only; SAM LambdaInvokePolicy resources are authoritative.
 Version: '2012-10-17'
 Statement:
   - Effect: Allow
     Action: lambda:InvokeFunction
-    Resource: arn:aws:lambda:<REGION>:<ACCOUNT_ID>:function:tambooh-<ENVIRONMENT>-IngestionFunction-*
+    Resource:
+      - arn:aws:lambda:<REGION>:<ACCOUNT_ID>:function:tambooh-<ENVIRONMENT>-PriceWorkerFunction-*
+      - arn:aws:lambda:<REGION>:<ACCOUNT_ID>:function:tambooh-<ENVIRONMENT>-IngestionReportFunction-*
 

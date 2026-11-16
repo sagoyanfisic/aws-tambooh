@@ -12,8 +12,12 @@ class PriceRecord(BaseModel):
     original_currency: str = "PEN"
     price_type: str = Field(pattern="^(wholesale|retail)$")
     unit: str
-    original_value: float = Field(gt=0)
-    normalized_value: float = Field(gt=0)
+    original_value: float | None = Field(default=None, ge=0)
+    normalized_value: float | None = Field(default=None, ge=0)
+    unit_original: str | None = None
+    normalization_unit: str | None = None
+    price_pen_per_l: float | None = Field(default=None, ge=0)
+    quality_flags: list[str] = Field(default_factory=list)
     ingestion_timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
 class Ingredient(BaseModel):
@@ -21,8 +25,8 @@ class Ingredient(BaseModel):
     name: str
     quantity_kg: float = Field(gt=0)
     price_pen_per_kg: float = Field(gt=0)
-    calories_per_100g: float = Field(ge=0)
-    protein_g_per_100g: float = Field(ge=0)
+    calories_per_100g: float | None = Field(default=None, ge=0)
+    protein_g_per_100g: float | None = Field(default=None, ge=0)
 
 class MealPlanRequest(BaseModel):
     household_size: int = Field(default=4, ge=1, le=20)

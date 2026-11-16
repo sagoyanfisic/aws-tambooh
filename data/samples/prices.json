@@ -1,9 +1,11 @@
 {
   "dataset": "TamBooh local demonstration data",
-  "is_production": false,
-  "source_institution": "MIDAGRI",
-  "source_url": "https://www.gob.pe/midagri",
-  "observation_date": "2026-11-10",
-  "currency": "PEN",
-  "records": [{"product_id":"papa","product_name":"Papa blanca","market":"Lima","price_type":"retail","unit":"kg","value":4.2},{"product_id":"arroz","product_name":"Arroz corriente","market":"Lima","price_type":"retail","unit":"kg","value":4.8}]
+  "is_demo": true,
+  "records": [
+    {"product_id":"papa","product_name":"Papa blanca","market":"Lima","observation_date":"2026-11-10","source_institution":"DEMO_ONLY","source_url":"sample://tambooh","original_currency":"PEN","price_type":"retail","unit":"kg","original_value":4.2,"normalized_value":4.2},
+    {"product_id":"arroz","product_name":"Arroz corriente","market":"Lima","observation_date":"2026-11-10","source_institution":"DEMO_ONLY","source_url":"sample://tambooh","original_currency":"PEN","price_type":"retail","unit":"kg","original_value":4.8,"normalized_value":4.8},
+    {"product_id":"lenteja","product_name":"Lenteja","market":"Lima","observation_date":"2026-11-10","source_institution":"DEMO_ONLY","source_url":"sample://tambooh","original_currency":"PEN","price_type":"retail","unit":"kg","original_value":7.5,"normalized_value":7.5},
+    {"product_id":"pollo","product_name":"Pollo","market":"Lima","observation_date":"2026-11-10","source_institution":"DEMO_ONLY","source_url":"sample://tambooh","original_currency":"PEN","price_type":"retail","unit":"kg","original_value":12.5,"normalized_value":12.5},
+    {"product_id":"zanahoria","product_name":"Zanahoria","market":"Lima","observation_date":"2026-11-10","source_institution":"DEMO_ONLY","source_url":"sample://tambooh","original_currency":"PEN","price_type":"retail","unit":"kg","original_value":3.0,"normalized_value":3.0}
+  ]
 }
