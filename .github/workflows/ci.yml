@@ -4,6 +4,11 @@ permissions: {contents: read}
 jobs:
   quality:
     runs-on: ubuntu-latest
+    env:
+      AWS_REGION: us-east-2
+      AWS_DEFAULT_REGION: us-east-2
+      AWS_EC2_METADATA_DISABLED: 'true'
+      SAM_CLI_TELEMETRY: '0'
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -19,5 +24,6 @@ jobs:
       - run: npm run lint && npm run build
         working-directory: frontend
       - uses: aws-actions/setup-sam@v2
-      - run: sam validate --template-file template.yaml
+      - name: Validate SAM template
+        run: sam validate --lint --region "$AWS_REGION" --template-file template.yaml
 
