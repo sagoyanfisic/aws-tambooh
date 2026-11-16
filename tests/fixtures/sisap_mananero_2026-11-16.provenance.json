@@ -1,0 +1,12 @@
+{
+  "source_id": "sisap_mananero",
+  "source_url": "http://sistemas.midagri.gob.pe/sisap/intranet/mayoristas_lima/modulos/reporte_precios.pdf",
+  "observation_date": "2026-11-16",
+  "report_time_lima": "06:17",
+  "transport": "http_insecure",
+  "sha256": "d798b90709d3b646deec5e75bb836712a7ad96d697cd3652be577a648ce73aa0",
+  "bytes": 338009,
+  "fixture_added_at": "2026-11-16T19:18:29.817082+00:00",
+  "provenance": "User-provided local downloaded file. Source URL supplied in the conversation. Byte authenticity and network download were not independently verified.",
+  "use": "Real report layout regression fixture; historical observation, not current live market prices."
+}

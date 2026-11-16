@@ -9,7 +9,7 @@ from .dates import parse_spanish_date
 from .models import PriceRecord, dynamo_keys
 from .units import normalized_price, parse_unit
 
-PARSER_VERSION = "2.0.0"
+PARSER_VERSION = "2.1.0"
 
 
 class DatasetQualityError(ValueError):
@@ -61,9 +61,60 @@ def column_name(value):
     return None
 
 
+def sisap_header_rows(rows, observed):
+    """Flatten the verified Mañanero two-row header; leave unknown layouts untouched."""
+    from .dates import MONTHS
+
+    result = []
+    index = 0
+    while index < len(rows):
+        row = rows[index]
+        header = [clean(cell) for cell in row]
+        if (
+            len(header) == 7
+            and header[:4] == ["mercado", "producto", "hoy", "ayer"]
+            and "diferencia" in header[4]
+            and "promedio" in header[5]
+            and not header[6]
+            and index + 1 < len(rows)
+        ):
+            units = [clean(cell) for cell in rows[index + 1]]
+            if (
+                len(units) != 7
+                or units[:2] != ["", ""]
+                or units[2:4] != ["s/ por kg", "s/ por kg"]
+                or "7 dias" not in units[6]
+            ):
+                raise DatasetQualityError("Unrecognized SISAP two-row price header")
+            previous_month = (observed.month - 2) % 12 + 1
+            names = [name for name, number in MONTHS.items() if number == previous_month]
+            if not any(units[5] == f"mes de {name}" for name in names):
+                raise DatasetQualityError(
+                    "SISAP average month is not the previous observation month"
+                )
+            result.append(
+                [
+                    "Mercado",
+                    "Producto",
+                    "Precio hoy",
+                    "Precio ayer",
+                    "Diferencia",
+                    "Promedio mes anterior",
+                    "Promedio ultimos 7 dias",
+                ]
+            )
+            index += 2
+        else:
+            result.append(row)
+            index += 1
+    return result
+
+
 def parse_rows(
     rows, observed, source_id, market, source_url, institution, raw_s3_key, retrieved_at=None
 ):
+    if source_id == "sisap_mananero":
+        rows = sisap_header_rows(rows, observed)
     columns = None
     records = []
     seen = set()
