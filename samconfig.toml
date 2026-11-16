@@ -1,0 +1,9 @@
+version = 0.1
+
+[default.deploy.parameters]
+stack_name = "tambooh-dev"
+region = "us-east-2"
+s3_bucket = "tambooh-dev-artifacts-786638967830"
+role_arn = "arn:aws:iam::786638967830:role/tambooh-dev-cloudformation"
+capabilities = "CAPABILITY_IAM"
+parameter_overrides = "Environment=dev EnableAI=false AnthropicSecretId=tambooh/dev/anthropic-api-key"

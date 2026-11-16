@@ -1,8 +1,10 @@
 from datetime import date, datetime
 from typing import Literal
+
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 SourceId = Literal["sisap_mananero", "gmml_ingreso", "papa_boletin", "productores"]
+
 
 class PriceRecord(BaseModel):
     model_config = ConfigDict(extra="forbid", allow_inf_nan=False)
@@ -51,17 +53,21 @@ class PriceRecord(BaseModel):
     def market_slug(self) -> str:
         return slug(self.market)
 
+
 def slug(value: str) -> str:
     import re
     import unicodedata
+
     clean = unicodedata.normalize("NFKD", value).encode("ascii", "ignore").decode().lower()
     return re.sub(r"[^a-z0-9]+", "-", clean).strip("-") or "unknown"
+
 
 def dynamo_keys(record: PriceRecord, dataset_id: str = "") -> dict[str, str]:
     identity = slug(f"{record.product} {record.variety_or_brand or ''} {record.unit_original}")
     suffix = f"#VERSION#{dataset_id}" if dataset_id else ""
-    return {"pk": f"PRODUCT#{identity}#MARKET#{record.market_slug}",
-            "sk": f"DATE#{record.observation_date.isoformat()}#SRC#{record.source_id}{suffix}",
-            "GSI1PK": f"DATE#{record.observation_date.isoformat()}",
-            "GSI1SK": f"SRC#{record.source_id}#PRODUCT#{identity}#MARKET#{record.market_slug}{suffix}"}
-
+    return {
+        "pk": f"PRODUCT#{identity}#MARKET#{record.market_slug}",
+        "sk": f"DATE#{record.observation_date.isoformat()}#SRC#{record.source_id}{suffix}",
+        "GSI1PK": f"DATE#{record.observation_date.isoformat()}",
+        "GSI1SK": f"SRC#{record.source_id}#PRODUCT#{identity}#MARKET#{record.market_slug}{suffix}",
+    }
