@@ -1,0 +1,7 @@
+Version: '2012-10-17'
+Statement:
+  - Effect: Allow
+    Action: [cloudformation:*, lambda:*, apigateway:*, dynamodb:*, s3:*, states:*, events:*, iam:PassRole, cloudfront:*]
+    Resource: '*'
+# Narrow Resource ARNs further in the target account after stack creation.
+

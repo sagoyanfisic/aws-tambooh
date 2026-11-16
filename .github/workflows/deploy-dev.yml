@@ -1,0 +1,14 @@
+name: Deploy dev
+on: {push: {branches: [main]}}
+permissions: {id-token: write, contents: read}
+jobs:
+  deploy:
+    environment: dev
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: aws-actions/configure-aws-credentials@v4
+        with: {role-to-assume: '${{ vars.AWS_DEPLOY_ROLE_ARN }}', aws-region: '${{ vars.AWS_REGION }}'}
+      - uses: aws-actions/setup-sam@v2
+      - run: sam build && sam deploy --no-confirm-changeset --no-fail-on-empty-changeset --parameter-overrides Environment=dev EnableBedrock=false
+

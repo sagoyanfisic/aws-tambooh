@@ -1,0 +1,16 @@
+```mermaid
+flowchart TD
+ A[EventBridge / manual execution] --> B[Step Functions Standard]
+ B --> C[FetchAgriculturalPrices]
+ C --> D[ValidateDataset]
+ D --> E{Valid?}
+ E -->|Yes| F[StoreRawDataset - S3]
+ F --> G[NormalizeAgriculturalPrices]
+ G --> H[PersistNormalizedPrices - DynamoDB]
+ H --> I[CalculatePriceTrends]
+ I --> J[PublishDataset]
+ J --> K[Success]
+ E -->|No| L[HandleFailure]
+ L --> M[Failed; preserve last dataset]
+```
+

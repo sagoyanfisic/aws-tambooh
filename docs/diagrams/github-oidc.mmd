@@ -1,0 +1,12 @@
+```mermaid
+sequenceDiagram
+ participant G as GitHub Actions
+ participant O as GitHub OIDC
+ participant S as AWS STS
+ participant SAM as AWS SAM
+ G->>O: request token
+ G->>S: assume exact environment subject role
+ S-->>G: short-lived credentials
+ G->>SAM: build and deploy
+```
+

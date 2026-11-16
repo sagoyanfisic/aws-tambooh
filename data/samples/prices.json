@@ -1,0 +1,9 @@
+{
+  "dataset": "TamBooh local demonstration data",
+  "is_production": false,
+  "source_institution": "MIDAGRI",
+  "source_url": "https://www.gob.pe/midagri",
+  "observation_date": "2026-11-10",
+  "currency": "PEN",
+  "records": [{"product_id":"papa","product_name":"Papa blanca","market":"Lima","price_type":"retail","unit":"kg","value":4.2},{"product_id":"arroz","product_name":"Arroz corriente","market":"Lima","price_type":"retail","unit":"kg","value":4.8}]
+}

@@ -1,0 +1,23 @@
+name: Deploy TamBooh ingestion
+on:
+  workflow_dispatch:
+    inputs:
+      environment: {description: Environment, required: true, default: dev}
+permissions: {contents: read, id-token: write}
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.environment }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.12'}
+      - run: pip install -e '.[dev]'
+      - run: pytest
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: us-east-1
+      - uses: aws-actions/setup-sam@v2
+      - run: sam validate --template-file template.yaml && sam build && sam deploy --no-confirm-changeset --no-fail-on-empty-changeset --parameter-overrides Environment=${{ inputs.environment }} IngestionScheduleExpression='cron(0 7 * * ? *)'
+

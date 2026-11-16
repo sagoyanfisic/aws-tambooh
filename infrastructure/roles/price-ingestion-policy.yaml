@@ -1,0 +1,9 @@
+Version: '2012-10-17'
+Statement:
+  - Effect: Allow
+    Action: [s3:GetObject, s3:PutObject]
+    Resource: arn:aws:s3:::<RAW_BUCKET>/raw/*
+  - Effect: Allow
+    Action: [dynamodb:PutItem, dynamodb:UpdateItem, dynamodb:GetItem, dynamodb:Query]
+    Resource: arn:aws:dynamodb:<REGION>:<ACCOUNT_ID>:table/tambooh-<ENVIRONMENT>-prices
+

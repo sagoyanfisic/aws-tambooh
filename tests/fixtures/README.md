@@ -1,0 +1,1 @@
+These are local text fixtures representing the extracted table text of the four source families. The development environment did not provide reachable official PDFs for a one-time download, so real-PDF tests remain a documented follow-up; the production worker uses `pdfplumber` when the fetched payload starts with `%PDF`.

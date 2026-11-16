@@ -1,0 +1,15 @@
+```mermaid
+sequenceDiagram
+ participant UI as React
+ participant API as API Gateway
+ participant L as AI Lambda
+ participant SM as Secrets Manager
+ participant C as Claude API
+ UI->>API: question + verified facts
+ API->>L: validated request
+ L->>SM: read one named secret
+ L->>C: bounded Messages API request
+ C-->>L: explanation
+ L-->>UI: validated grounded response or fallback
+```
+

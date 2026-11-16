@@ -1,0 +1,142 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: TamBooh serverless food planning MVP
+Parameters:
+  Environment: {Type: String, Default: dev, AllowedValues: [dev, prod]}
+  ClaudeModelId: {Type: String, Default: 'claude-haiku-4-5-20251001'}
+  EnableAI: {Type: String, Default: 'false', AllowedValues: ['true','false']}
+  AnthropicSecretId: {Type: String, Default: tambooh/dev/anthropic-api-key, NoEcho: true}
+  IngestionScheduleExpression: {Type: String, Default: 'cron(0 7 * * ? *)'}
+Globals:
+  Function:
+    Runtime: python3.12
+    Architectures: [arm64]
+    Timeout: 15
+    MemorySize: 256
+    Environment:
+      Variables: {ENVIRONMENT: !Ref Environment, AI_PROVIDER: anthropic, ENABLE_AI: !Ref EnableAI, CLAUDE_MODEL_ID: !Ref ClaudeModelId, ANTHROPIC_SECRET_ID: !Ref AnthropicSecretId, RAW_BUCKET: !Ref RawDataBucket, PRICE_TABLE_NAME: !Ref PricesTable}
+    Tracing: Active
+Resources:
+  Api:
+    Type: AWS::Serverless::HttpApi
+    Properties:
+      StageName: !Ref Environment
+      CorsConfiguration: {AllowOrigins: ['*'], AllowHeaders: ['content-type'], AllowMethods: ['GET','POST','OPTIONS']}
+      DefaultRouteSettings: {ThrottlingBurstLimit: 50, ThrottlingRateLimit: 20}
+  ApiFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: .
+      Handler: backend.functions.api.app.lambda_handler
+      Policies:
+        - DynamoDBReadPolicy: {TableName: !Ref PricesTable}
+      Events:
+        Api: {Type: HttpApi, Properties: {ApiId: !Ref Api, Path: '/api/v1/{proxy+}', Method: ANY}}
+  AIExplainFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: .
+      Handler: backend.functions.ai_explain.app.lambda_handler
+      Policies:
+        - Statement:
+            - Effect: Allow
+              Action: secretsmanager:GetSecretValue
+              Resource: !Sub arn:${AWS::Partition}:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:${AnthropicSecretId}*
+      Events:
+        Explain: {Type: HttpApi, Properties: {ApiId: !Ref Api, Path: /api/v1/ai/explain, Method: POST}}
+  IngestionFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: .
+      Handler: backend.functions.ingestion.app.lambda_handler
+      Timeout: 60
+      Policies:
+        - S3CrudPolicy: {BucketName: !Ref RawDataBucket}
+        - DynamoDBCrudPolicy: {TableName: !Ref PricesTable}
+  PriceWorkerFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: .
+      Handler: src.functions.ingest_worker.app.lambda_handler
+      Architectures: [arm64]
+      Timeout: 60
+      MemorySize: 512
+      Policies:
+        - S3CrudPolicy: {BucketName: !Ref RawDataBucket}
+        - DynamoDBCrudPolicy: {TableName: !Ref PricesTable}
+      Environment:
+        Variables: {RAW_BUCKET: !Ref RawDataBucket, PRICE_TABLE_NAME: !Ref PricesTable}
+  IngestionReportFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: .
+      Handler: src.functions.report.app.lambda_handler
+      Architectures: [arm64]
+  PricesTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: !Sub tambooh-${Environment}-prices
+      BillingMode: PAY_PER_REQUEST
+      PointInTimeRecoverySpecification: {PointInTimeRecoveryEnabled: true}
+      SSESpecification: {SSEEnabled: true}
+      AttributeDefinitions: [{AttributeName: pk, AttributeType: S}, {AttributeName: sk, AttributeType: S}, {AttributeName: GSI1PK, AttributeType: S}, {AttributeName: GSI1SK, AttributeType: S}]
+      KeySchema: [{AttributeName: pk, KeyType: HASH}, {AttributeName: sk, KeyType: RANGE}]
+      GlobalSecondaryIndexes: [{IndexName: GSI1, KeySchema: [{AttributeName: GSI1PK, KeyType: HASH}, {AttributeName: GSI1SK, KeyType: RANGE}], Projection: {ProjectionType: ALL}}]
+  RawDataBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketEncryption: {ServerSideEncryptionConfiguration: [{ServerSideEncryptionByDefault: {SSEAlgorithm: AES256}}]}
+      PublicAccessBlockConfiguration: {BlockPublicAcls: true, BlockPublicPolicy: true, IgnorePublicAcls: true, RestrictPublicBuckets: true}
+      LifecycleConfiguration: {Rules: [{Id: ExpireRawData, Status: Enabled, ExpirationInDays: 90}]}
+  FrontendBucket:
+    Type: AWS::S3::Bucket
+    Properties: {BucketEncryption: {ServerSideEncryptionConfiguration: [{ServerSideEncryptionByDefault: {SSEAlgorithm: AES256}}]}}
+  FrontendOriginAccessControl:
+    Type: AWS::CloudFront::OriginAccessControl
+    Properties:
+      OriginAccessControlConfig: {Name: !Sub 'tambooh-${Environment}-frontend', OriginAccessControlOriginType: s3, SigningBehavior: always, SigningProtocol: sigv4, Description: Private frontend origin}
+  FrontendDistribution:
+    Type: AWS::CloudFront::Distribution
+    Properties:
+      DistributionConfig:
+        Enabled: true
+        DefaultRootObject: index.html
+        HttpVersion: http2
+        Origins: [{Id: frontend-s3, DomainName: !GetAtt FrontendBucket.RegionalDomainName, OriginAccessControlId: !GetAtt FrontendOriginAccessControl.Id, S3OriginConfig: {}}]
+        DefaultCacheBehavior: {TargetOriginId: frontend-s3, ViewerProtocolPolicy: redirect-to-https, Compress: true, AllowedMethods: [GET, HEAD, OPTIONS], CachedMethods: [GET, HEAD], ForwardedValues: {QueryString: false, Cookies: {Forward: none}}}
+        ViewerCertificate: {CloudFrontDefaultCertificate: true}
+  FrontendBucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Ref FrontendBucket
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal: {Service: cloudfront.amazonaws.com}
+            Action: s3:GetObject
+            Resource: !Sub ${FrontendBucket.Arn}/*
+            Condition: {StringEquals: {AWS:SourceArn: !Sub 'arn:${AWS::Partition}:cloudfront::${AWS::AccountId}:distribution/${FrontendDistribution}'}}
+  IngestionStateMachine:
+    Type: AWS::Serverless::StateMachine
+    Properties:
+      DefinitionUri: statemachine/ingest.asl.json
+      DefinitionSubstitutions: {PriceWorkerArn: !GetAtt PriceWorkerFunction.Arn, ReportFunctionArn: !GetAtt IngestionReportFunction.Arn}
+      Policies: [{LambdaInvokePolicy: {FunctionName: !Ref PriceWorkerFunction}}, {LambdaInvokePolicy: {FunctionName: !Ref IngestionReportFunction}}]
+  IngestionSchedule:
+    Type: AWS::Scheduler::Schedule
+    Properties:
+      ScheduleExpression: !Ref IngestionScheduleExpression
+      ScheduleExpressionTimezone: America/Lima
+      FlexibleTimeWindow: {Mode: OFF}
+      Target: {Arn: !Ref IngestionStateMachine, RoleArn: !GetAtt EventsRole.Arn, Input: '{"sources":[{"source_id":"sisap_mananero","source_url":"http://sistemas.midagri.gob.pe/sisap/intranet/mayoristas_lima/modulos/reporte_precios.pdf","market":"Gran Mercado Mayorista de Lima","institution":"MIDAGRI-DGESEP-DEIA"},{"source_id":"gmml_ingreso","source_url":"https://siea.midagri.gob.pe/files/datos_estadisticas/diarias/mml/","market":"Gran Mercado Mayorista de Lima","institution":"MIDAGRI-DGESEP-DEIA"},{"source_id":"papa_boletin","source_url":"https://www.gob.pe/institucion/midagri/colecciones/5-boletin-diario-de-abastecimiento-y-precio-de-papa","market":"Lima","institution":"MIDAGRI-DGESEP-DEIA"},{"source_id":"productores","source_url":"https://www.gob.pe/institucion/midagri/colecciones/18-reporte-de-ingreso-y-precios-en-el-mercado-mayorista-de-productores","market":"Santa Anita","institution":"EMMSA"}]}' }
+  EventsRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument: {Version: '2012-10-17', Statement: [{Effect: Allow, Principal: {Service: scheduler.amazonaws.com}, Action: sts:AssumeRole}]}
+      Policies: [{PolicyName: StartIngestion, PolicyDocument: {Version: '2012-10-17', Statement: [{Effect: Allow, Action: states:StartExecution, Resource: !Ref IngestionStateMachine}]}}]
+Outputs:
+  ApiUrl: {Value: !Sub 'https://${Api}.execute-api.${AWS::Region}.amazonaws.com/${Environment}'}
+  FrontendBucketName: {Value: !Ref FrontendBucket}
+  FrontendDistributionDomain: {Value: !GetAtt FrontendDistribution.DomainName}
+
